@@ -71,6 +71,18 @@ Sign in at `admin/login.html` (see "Create your first admin account" below), the
 
 No rule changes or console fiddling required — it writes through the normal admin permissions already defined in `firestore.rules`.
 
+## Zero-setup demo mode
+
+Anyone can explore the whole app instantly, with no account or setup, via **"Login as Demo Admin" / "Login as Demo User"** buttons on `customer/login.html` and `admin/login.html`.
+
+**How it works:**
+- Both are fixed, permanent accounts (`demo-admin@emberandsalt.app` / `demo-user@emberandsalt.app`) that self-provision on first click — the app tries to log in, and silently registers the account instead if it doesn't exist yet. No setup required on a fresh Firebase project.
+- The two accounts are genuinely connected, not two disconnected sandboxes: every seeded order and reservation is owned by the real Demo User account, so logging in as Demo Admin shows a live kanban board and dashboard reacting to *that guest's* real activity — the actual thing this app is for.
+- The first successful demo login (either button, in any order) automatically seeds a full menu, 15 orders, and 8 reservations if none exist yet. A dismissible "Welcome to the demo" banner explains the account once per browser session.
+- **Demo Tools** (Seed / Reset) only appear in the sidebar — and only work — for the exact `demo-admin@emberandsalt.app` account, gated by email rather than role, so a real client's own admin account never sees them, even by guessing the URL (`admin/demo-data.html` hard-checks the email too).
+- Every document the demo creates is tagged `isDemo: true`. **Reset Demo Data** wipes only those tagged documents across categories, meals, promo codes, orders, and reservations, then reseeds clean — a real client's own menu or bookings are never touched.
+- The admin Dashboard, Customers, Reports, and both order/reservation lists (customer and admin) all use live Firestore listeners (`onSnapshot`), not one-time loads — accepting an order as Demo Admin updates Demo User's order history and the dashboard charts instantly, with no refresh.
+
 ## Firestore collections
 
 | Collection | Purpose |
