@@ -100,6 +100,7 @@
   import { requireAuth, logoutUser } from '../js/modules/auth.js';
   import { auth, db, doc, updateDoc, getDoc, EmailAuthProvider, reauthenticateWithCredential, updatePassword, increment } from '../js/firebase/config.js';
   import { fetchMeals } from '../js/modules/menu-data.js';
+  import { maybeShowDemoWelcomeBanner } from '../js/modules/demo-auth.js';
   initTheme();
 
   document.querySelectorAll('.acct-nav a[data-tab]').forEach(a => a.addEventListener('click', (e) => {
@@ -115,6 +116,7 @@
   let currentUser, currentProfile;
   requireAuth().then(({ user, profile }) => {
     currentUser = user; currentProfile = profile;
+    maybeShowDemoWelcomeBanner(user.email);
     document.getElementById('p-name').value = profile?.name || '';
     document.getElementById('p-email').value = user.email;
     document.getElementById('p-phone').value = profile?.phone || '';

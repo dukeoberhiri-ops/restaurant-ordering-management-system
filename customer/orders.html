@@ -32,34 +32,42 @@
 <script type="module">
   import { initTheme, formatCurrency, formatDateTime, openModal, escapeHtml } from '../js/modules/ui.js';
   import { requireAuth } from '../js/modules/auth.js';
-  import { db, collection, query, where, getDocs } from '../js/firebase/config.js';
+  import { db, collection, query, where, onSnapshot } from '../js/firebase/config.js';
   initTheme();
 
   const STATUS_BADGE = { pending:'badge-warning', accepted:'badge-gold', preparing:'badge-gold', ready:'badge-olive', out_for_delivery:'badge-olive', delivered:'badge-success', cancelled:'badge-danger' };
+  let currentOrders = [];
 
-  requireAuth().then(async ({ user }) => {
+  requireAuth().then(({ user }) => {
     const wrap = document.getElementById('orders-list');
-    try {
-      const snap = await getDocs(query(collection(db, 'orders'), where('userId', '==', user.uid)));
-      const orders = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
-      if (!orders.length) { wrap.innerHTML = `<div class="empty-state"><div class="icon">🧾</div>No orders yet.<br><a href="menu.html" class="btn btn-primary" style="margin-top:var(--sp-4)">Order now</a></div>`; return; }
-      wrap.innerHTML = orders.map(o => `
-        <div class="order-row">
-          <div class="mono text-muted">#${o.id.slice(0,8).toUpperCase()}</div>
-          <div>
-            <div style="font-weight:600">${(o.items||[]).length} items · ${(o.orderType||'').replace('_',' ')}</div>
-            <div class="text-muted" style="font-size:var(--text-xs)">${o.createdAt ? formatDateTime(o.createdAt) : ''}</div>
-          </div>
-          <span class="badge ${STATUS_BADGE[o.status] || 'badge-muted'}">${(o.status||'').replace('_',' ')}</span>
-          <div class="flex gap-2">
-            <strong>${formatCurrency(o.total)}</strong>
-            <button class="btn btn-ghost btn-sm" data-invoice="${o.id}">Invoice</button>
-            <a href="order-track.html?id=${o.id}" class="btn btn-outline btn-sm">Track</a>
-          </div>
-        </div>`).join('');
-      wrap.querySelectorAll('[data-invoice]').forEach(b => b.addEventListener('click', () => showInvoice(orders.find(o => o.id === b.dataset.invoice))));
-    } catch (err) { console.error(err); wrap.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div>Couldn't load your orders.</div>`; }
+    onSnapshot(query(collection(db, 'orders'), where('userId', '==', user.uid)), (snap) => {
+      currentOrders = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
+      render(wrap);
+    }, (err) => {
+      console.error(err);
+      wrap.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div>Couldn't load your orders (${err.code || err.message}).</div>`;
+    });
   });
+
+  function render(wrap) {
+    const orders = currentOrders;
+    if (!orders.length) { wrap.innerHTML = `<div class="empty-state"><div class="icon">🧾</div>No orders yet.<br><a href="menu.html" class="btn btn-primary" style="margin-top:var(--sp-4)">Order now</a></div>`; return; }
+    wrap.innerHTML = orders.map(o => `
+      <div class="order-row">
+        <div class="mono text-muted">#${o.id.slice(0,8).toUpperCase()}</div>
+        <div>
+          <div style="font-weight:600">${(o.items||[]).length} items · ${(o.orderType||'').replace('_',' ')}</div>
+          <div class="text-muted" style="font-size:var(--text-xs)">${o.createdAt ? formatDateTime(o.createdAt) : ''}</div>
+        </div>
+        <span class="badge ${STATUS_BADGE[o.status] || 'badge-muted'}">${(o.status||'').replace('_',' ')}</span>
+        <div class="flex gap-2">
+          <strong>${formatCurrency(o.total)}</strong>
+          <button class="btn btn-ghost btn-sm" data-invoice="${o.id}">Invoice</button>
+          <a href="order-track.html?id=${o.id}" class="btn btn-outline btn-sm">Track</a>
+        </div>
+      </div>`).join('');
+    wrap.querySelectorAll('[data-invoice]').forEach(b => b.addEventListener('click', () => showInvoice(orders.find(o => o.id === b.dataset.invoice))));
+  }
 
   function showInvoice(o) {
     openModal(`

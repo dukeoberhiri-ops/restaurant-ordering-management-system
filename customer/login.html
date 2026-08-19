@@ -41,12 +41,24 @@
       New here? <a href="register.html" style="color:var(--color-ember);font-weight:600">Create an account</a>
     </p>
     <p class="text-center" style="margin-top:var(--sp-3)"><a href="../admin/login.html" class="text-muted" style="font-size:var(--text-xs)">Staff / Admin login →</a></p>
+
+    <div class="flex items-center gap-3" style="margin:var(--sp-6) 0">
+      <div style="flex:1;height:1px;background:var(--color-line)"></div>
+      <span class="text-muted" style="font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.06em">Just exploring?</span>
+      <div style="flex:1;height:1px;background:var(--color-line)"></div>
+    </div>
+    <div class="flex gap-3">
+      <button class="btn btn-outline btn-block" id="demo-admin-btn">Login as Demo Admin</button>
+      <button class="btn btn-outline btn-block" id="demo-user-btn">Login as Demo User</button>
+    </div>
+    <p class="text-muted" style="font-size:var(--text-xs);text-align:center;margin-top:var(--sp-3)">No signup needed — instantly explore the app with sample data already loaded.</p>
   </div>
 </div>
 
 <script type="module">
   import { initTheme, showToast, openModal } from '../js/modules/ui.js';
   import { loginUser, resetPassword, watchAuth } from '../js/modules/auth.js';
+  import { loginAsDemoAdmin, loginAsDemoUser } from '../js/modules/demo-auth.js';
   initTheme();
 
   // If already signed in, bounce to account
@@ -78,6 +90,41 @@
       submitBtn.disabled = false; submitBtn.textContent = 'Sign In';
     }
   });
+
+  document.getElementById('demo-admin-btn').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    setDemoButtonsBusy(true, btn, 'Setting up demo…');
+    try {
+      await loginAsDemoAdmin();
+      window.location.href = '../admin/dashboard.html';
+    } catch (err) {
+      console.error(err);
+      showToast('Could not start the demo: ' + (err.code || err.message), 'error');
+      setDemoButtonsBusy(false);
+    }
+  });
+
+  document.getElementById('demo-user-btn').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    setDemoButtonsBusy(true, btn, 'Setting up demo…');
+    try {
+      await loginAsDemoUser();
+      window.location.href = 'account.html';
+    } catch (err) {
+      console.error(err);
+      showToast('Could not start the demo: ' + (err.code || err.message), 'error');
+      setDemoButtonsBusy(false);
+    }
+  });
+
+  function setDemoButtonsBusy(busy, activeBtn, label) {
+    ['demo-admin-btn', 'demo-user-btn'].forEach(id => {
+      const b = document.getElementById(id);
+      b.disabled = busy;
+      if (busy && b === activeBtn) b.textContent = label; 
+      else if (!busy) b.textContent = id === 'demo-admin-btn' ? 'Login as Demo Admin' : 'Login as Demo User';
+    });
+  }
 
   document.getElementById('forgot-link').addEventListener('click', (e) => {
     e.preventDefault();

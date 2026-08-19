@@ -73,7 +73,7 @@
 <script type="module">
   import { initTheme, showToast, formatDate, confirmDialog, escapeHtml } from '../js/modules/ui.js';
   import { watchAuth } from '../js/modules/auth.js';
-  import { db, collection, addDoc, query, where, getDocs, updateDoc, doc, orderBy, serverTimestamp, runTransaction } from '../js/firebase/config.js';
+  import { db, collection, addDoc, query, where, onSnapshot, updateDoc, doc, orderBy, serverTimestamp, runTransaction, getDocs, increment } from '../js/firebase/config.js';
 
   initTheme();
 
@@ -88,19 +88,24 @@
   document.getElementById('guest-dec').addEventListener('click', () => { guests = Math.max(guests-1, 1); document.getElementById('guest-count').textContent = guests; });
 
   let currentUser = null;
+  let reservationsListenerUid = null;
   const TABLE_CAPACITY = 12; // total tables available per timeslot
 
   watchAuth((user) => {
     currentUser = user;
     document.getElementById('account-link').href = user ? 'account.html' : 'login.html';
-    if (user) loadMyReservations(user.uid); else document.getElementById('my-reservations').innerHTML = `<div class="empty-state"><div class="icon">📅</div>Sign in to see your bookings.</div>`;
+    if (user) {
+      if (reservationsListenerUid !== user.uid) { reservationsListenerUid = user.uid; watchMyReservations(user.uid); }
+    } else {
+      reservationsListenerUid = null;
+      document.getElementById('my-reservations').innerHTML = `<div class="empty-state"><div class="icon">📅</div>Sign in to see your bookings.</div>`;
+    }
   });
 
-  async function loadMyReservations(uid) {
+  function watchMyReservations(uid) {
     const wrap = document.getElementById('my-reservations');
     wrap.innerHTML = `<div class="skeleton" style="height:200px"></div>`;
-    try {
-      const snap = await getDocs(query(collection(db, 'reservations'), where('userId', '==', uid)));
+    onSnapshot(query(collection(db, 'reservations'), where('userId', '==', uid)), (snap) => {
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
       if (!list.length) { wrap.innerHTML = `<div class="empty-state"><div class="icon">📅</div>No reservations yet.</div>`; return; }
       wrap.innerHTML = list.map(r => `
@@ -115,11 +120,23 @@
       wrap.querySelectorAll('[data-cancel]').forEach(b => b.addEventListener('click', async () => {
         const ok = await confirmDialog({ title: 'Cancel reservation?', message: 'This will free up your table for other guests.', confirmLabel: 'Cancel reservation', danger: true });
         if (!ok) return;
-        await updateDoc(doc(db, 'reservations', b.dataset.cancel), { status: 'cancelled' });
-        showToast('Reservation cancelled', 'success');
-        loadMyReservations(uid);
+        const target = list.find(x => x.id === b.dataset.cancel);
+        try {
+          await updateDoc(doc(db, 'reservations', b.dataset.cancel), { status: 'cancelled' });
+          if (target?.slotKey) {
+            try { await updateDoc(doc(db, 'availability', target.slotKey), { count: increment(-1) }); }
+            catch (e) { console.warn('Could not release availability slot', e); }
+          }
+          showToast('Reservation cancelled', 'success');
+        } catch (err) {
+          console.error(err);
+          showToast('Could not cancel: ' + (err.code || err.message), 'error');
+        }
       }));
-    } catch (err) { console.error(err); wrap.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div>Couldn't load reservations.</div>`; }
+    }, (err) => {
+      console.error(err);
+      wrap.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div>Couldn't load reservations (${err.code || err.message}).</div>`;
+    });
   }
   function statusBadge(s) { return { pending:'badge-warning', confirmed:'badge-success', cancelled:'badge-danger', rejected:'badge-danger' }[s] || 'badge-muted'; }
 
@@ -142,10 +159,20 @@
     const btn = document.getElementById('res-submit');
     btn.disabled = true; btn.textContent = 'Checking availability…';
     try {
-      // Prevent double-booking: count existing non-cancelled reservations for this date+time slot
+      // Prevent double-booking without needing broad read access to every
+      // customer's reservations (which the security rules correctly forbid
+      // for non-admins): check & reserve a slot atomically against a small
+      // public availability counter instead.
       const slotKey = `${date}_${time}`;
-      const snap = await getDocs(query(collection(db, 'reservations'), where('slotKey', '==', slotKey), where('status', 'in', ['pending','confirmed'])));
-      if (snap.size >= TABLE_CAPACITY) {
+      const availRef = doc(db, 'availability', slotKey);
+      let slotFull = false;
+      await runTransaction(db, async (tx) => {
+        const availSnap = await tx.get(availRef);
+        const count = availSnap.exists() ? (availSnap.data().count || 0) : 0;
+        if (count >= TABLE_CAPACITY) { slotFull = true; return; }
+        tx.set(availRef, { slotKey, count: count + 1 }, { merge: true });
+      });
+      if (slotFull) {
         showToast('That time is fully booked — please choose another slot.', 'error');
         btn.disabled = false; btn.textContent = 'Confirm Reservation';
         return;
@@ -155,11 +182,10 @@
         date, time, slotKey, guests, notes, status: 'pending', tableAssigned: null, createdAt: serverTimestamp()
       });
       showToast('Reservation requested — you\'ll get a confirmation shortly.', 'success');
-      loadMyReservations(currentUser.uid);
       e.target.reset();
       document.getElementById('res-date').value = new Date().toISOString().split('T')[0];
     } catch (err) {
-      console.error(err); showToast('Could not complete your reservation. Please try again.', 'error');
+      console.error(err); showToast('Could not complete your reservation: ' + (err.code || err.message), 'error');
     }
     btn.disabled = false; btn.textContent = 'Confirm Reservation';
   });
