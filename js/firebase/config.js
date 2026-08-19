@@ -30,14 +30,14 @@ import {
 
 // ⬇️⬇️⬇️  PASTE YOUR FIREBASE SDK CONFIG HERE  ⬇️⬇️⬇️
 const firebaseConfig = {
-apiKey: "AIzaSyCKmQqemECsLLa8eOPJHW78zAvNYudpc8s",
-authDomain: "restaurant-7287b.firebaseapp.com",
-projectId: "restaurant-7287b",
-storageBucket: "restaurant-7287b.firebasestorage.app",
-messagingSenderId: "257680278499",
-appId: "1:257680278499:web:810d45cd5da53e2cabd6d6",
-measurementId: "G-MNC37Z4T0N"
-};;
+  apiKey: "AIzaSyCKmQqemECsLLa8eOPJHW78zAvNYudpc8s",
+  authDomain: "restaurant-7287b.firebaseapp.com",
+  projectId: "restaurant-7287b",
+  storageBucket: "restaurant-7287b.firebasestorage.app",
+  messagingSenderId: "257680278499",
+  appId: "1:257680278499:web:810d45cd5da53e2cabd6d6",
+  measurementId: "G-MNC37Z4T0N"
+};
 // ⬆️⬆️⬆️  PASTE YOUR FIREBASE SDK CONFIG HERE  ⬆️⬆️⬆️
 
 const app = initializeApp(firebaseConfig);
