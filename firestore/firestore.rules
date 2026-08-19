@@ -59,6 +59,15 @@ service cloud.firestore {
       allow delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
     }
 
+    // ---- Availability counters (per reservation slot) ----
+    // Public read so the booking form's double-booking check works for
+    // customers too, not just admins — deliberately not scoped to owner,
+    // since it holds only an aggregate count, never personal data.
+    match /availability/{slotId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
     // ---- Reviews: public read, owner or admin write ----
     match /reviews/{reviewId} {
       allow read: if true;
