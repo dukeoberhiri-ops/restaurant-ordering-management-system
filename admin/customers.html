@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Customers — Ember & Salt Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/tokens.css">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/components.css">
+<link rel="stylesheet" href="../css/admin.css">
+</head>
+<body>
+<script src="../js/debug-overlay.js"></script>
+<script type="module">
+  import { initAdminPage } from '../js/admin/layout.js';
+  import { showToast, confirmDialog, debounce, escapeHtml, openModal, formatDateTime } from '../js/modules/ui.js';
+  import { db, collection, getDocs, query, where, updateDoc, doc } from '../js/firebase/config.js';
+
+  let customers = [];
+
+  initAdminPage('customers.html').then(async ({ content }) => {
+    content.innerHTML = `
+      <h1 class="font-display" style="font-size:var(--text-2xl);margin-bottom:var(--sp-6)">Customers</h1>
+      <input class="input" id="cust-search" placeholder="Search by name or email…" style="max-width:320px;margin-bottom:var(--sp-5)">
+      <div class="card"><table class="data-table"><thead><tr><th>Name</th><th>Email</th><th>Loyalty</th><th>Tier</th><th>Status</th><th></th></tr></thead><tbody id="cust-body"></tbody></table></div>`;
+
+    const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'customer')));
+    customers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
+    document.getElementById('cust-search').addEventListener('input', debounce(render, 200));
+  });
+
+  function tierFor(pts=0) { if (pts >= 1000) return 'VIP'; if (pts >= 500) return 'Gold'; if (pts >= 200) return 'Silver'; return 'Bronze'; }
+
+  function render() {
+    const search = (document.getElementById('cust-search')?.value || '').toLowerCase();
+    const filtered = customers.filter(c => (c.name||'').toLowerCase().includes(search) || (c.email||'').toLowerCase().includes(search));
+    const body = document.getElementById('cust-body');
+    body.innerHTML = filtered.length ? filtered.map(c => `
+      <tr>
+        <td>${escapeHtml(c.name || '—')}</td>
+        <td class="text-muted">${escapeHtml(c.email || '—')}</td>
+        <td class="mono">${c.loyaltyPoints || 0} pts</td>
+        <td><span class="badge badge-gold">${tierFor(c.loyaltyPoints)}</span></td>
+        <td><span class="badge ${c.status === 'suspended' ? 'badge-danger' : 'badge-success'}">${c.status || 'active'}</span></td>
+        <td>
+          <div class="flex gap-2">
+            <button class="btn btn-outline btn-sm" data-view="${c.id}">View</button>
+            <button class="btn btn-ghost btn-sm" data-toggle="${c.id}" style="color:var(--color-danger)">${c.status === 'suspended' ? 'Reinstate' : 'Suspend'}</button>
+          </div>
+        </td>
+      </tr>`).join('') : `<tr><td colspan="6"><div class="empty-state"><div class="icon">👥</div>No customers found.</div></td></tr>`;
+
+    body.querySelectorAll('[data-toggle]').forEach(b => b.addEventListener('click', async () => {
+      const c = customers.find(x => x.id === b.dataset.toggle);
+      const next = c.status === 'suspended' ? 'active' : 'suspended';
+      const ok = await confirmDialog({ title: `${next === 'suspended' ? 'Suspend' : 'Reinstate'} this customer?`, danger: next === 'suspended' });
+      if (!ok) return;
+      await updateDoc(doc(db, 'users', c.id), { status: next });
+      c.status = next; render();
+      showToast(`Customer ${next}`, 'success');
+    }));
+    body.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', async () => {
+      const c = customers.find(x => x.id === b.dataset.view);
+      const [ordersSnap, resSnap] = await Promise.all([
+        getDocs(query(collection(db, 'orders'), where('userId', '==', c.id))),
+        getDocs(query(collection(db, 'reservations'), where('userId', '==', c.id)))
+      ]);
+      openModal(`
+        <div class="modal-header"><h3 class="font-display">${escapeHtml(c.name || 'Customer')}</h3><button class="modal-close" data-close-modal>&times;</button></div>
+        <p class="text-muted" style="margin-bottom:var(--sp-4)">${escapeHtml(c.email)} · ${escapeHtml(c.phone||'no phone')}</p>
+        <div class="flex gap-3" style="margin-bottom:var(--sp-5)">
+          <span class="badge badge-gold">${tierFor(c.loyaltyPoints)}</span>
+          <span class="badge badge-ember">${c.loyaltyPoints||0} pts</span>
+        </div>
+        <h4 style="margin-bottom:var(--sp-2)">Orders (${ordersSnap.size})</h4>
+        <p class="text-muted" style="font-size:var(--text-sm);margin-bottom:var(--sp-4)">${ordersSnap.size ? ordersSnap.size + ' total orders placed' : 'No orders yet'}</p>
+        <h4 style="margin-bottom:var(--sp-2)">Reservations (${resSnap.size})</h4>
+        <p class="text-muted" style="font-size:var(--text-sm)">${resSnap.size ? resSnap.size + ' total reservations' : 'No reservations yet'}</p>
+      `);
+    }));
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Menu Management — Ember & Salt Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/tokens.css">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/components.css">
+<link rel="stylesheet" href="../css/admin.css">
+<style>
+  .meal-admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: var(--sp-5); }
+  .meal-admin-card .meal-photo { height: 130px; width: 100%; object-fit: cover; background: var(--color-bg-sunken); }
+</style>
+</head>
+<body>
+<script src="../js/debug-overlay.js"></script>
+<script type="module">
+  import { initAdminPage } from '../js/admin/layout.js';
+  import { showToast, confirmDialog, skeletonCards, escapeHtml, debounce, openModal } from '../js/modules/ui.js';
+  import { db, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from '../js/firebase/config.js';
+  import { fetchCategories } from '../js/modules/menu-data.js';
+
+  let categories = [], meals = [];
+
+  initAdminPage('menu.html').then(async ({ content }) => {
+    content.innerHTML = `
+      <div class="flex justify-between items-center" style="margin-bottom:var(--sp-6);flex-wrap:wrap;gap:var(--sp-3)">
+        <h1 class="font-display" style="font-size:var(--text-2xl)">Menu Management</h1>
+        <button class="btn btn-primary" id="add-meal-btn">+ Add Meal</button>
+      </div>
+      <div class="flex gap-3" style="margin-bottom:var(--sp-5);flex-wrap:wrap">
+        <input class="input" id="meal-search" placeholder="Search meals…" style="max-width:280px">
+        <select class="input" id="cat-filter" style="max-width:200px"><option value="all">All categories</option></select>
+      </div>
+      <div class="meal-admin-grid" id="meal-grid">${skeletonCards(6, '230px')}</div>`;
+
+    categories = await fetchCategories();
+    document.getElementById('cat-filter').innerHTML += categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    await loadMeals();
+
+    document.getElementById('add-meal-btn').addEventListener('click', () => openMealForm());
+    document.getElementById('meal-search').addEventListener('input', debounce(render, 200));
+    document.getElementById('cat-filter').addEventListener('change', render);
+  });
+
+  async function loadMeals() {
+    const snap = await getDocs(collection(db, 'meals'));
+    meals = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
+  }
+
+  function render() {
+    const search = (document.getElementById('meal-search')?.value || '').toLowerCase();
+    const cat = document.getElementById('cat-filter')?.value || 'all';
+    const filtered = meals.filter(m => (cat === 'all' || m.categoryId === cat) && m.name.toLowerCase().includes(search));
+    const grid = document.getElementById('meal-grid');
+    if (!filtered.length) { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">🍽️</div>No meals found. Add your first meal.</div>`; return; }
+    grid.innerHTML = filtered.map(m => `
+      <div class="card card-flush meal-admin-card">
+        <img class="meal-photo" src="${m.imageUrl || ''}" alt="${escapeHtml(m.name)}" loading="lazy">
+        <div style="padding:var(--sp-4)">
+          <div class="flex justify-between items-center" style="margin-bottom:var(--sp-1)">
+            <strong>${escapeHtml(m.name)}</strong>
+            <span class="mono" style="color:var(--color-ember)">$${(m.price||0).toFixed(2)}</span>
+          </div>
+          <div class="flex gap-2" style="margin:var(--sp-2) 0">
+            <span class="badge ${m.available ? 'badge-success' : 'badge-muted'}">${m.available ? 'Available' : 'Unavailable'}</span>
+            ${m.featured ? '<span class="badge badge-gold">Featured</span>' : ''}
+          </div>
+          <div class="flex gap-2" style="margin-top:var(--sp-3)">
+            <button class="btn btn-outline btn-sm" style="flex:1" data-edit="${m.id}">Edit</button>
+            <button class="btn btn-ghost btn-sm" data-del="${m.id}" style="color:var(--color-danger)">Delete</button>
+          </div>
+        </div>
+      </div>`).join('');
+
+    grid.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openMealForm(meals.find(m => m.id === b.dataset.edit))));
+    grid.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
+      const ok = await confirmDialog({ title: 'Delete this meal?', message: 'This cannot be undone.', confirmLabel: 'Delete', danger: true });
+      if (!ok) return;
+      await deleteDoc(doc(db, 'meals', b.dataset.del));
+      showToast('Meal deleted', 'success');
+      await loadMeals();
+    }));
+  }
+
+  function openMealForm(meal = null) {
+    const isEdit = !!meal;
+    const { close } = openModal(`
+      <div class="modal-header"><h3 class="font-display">${isEdit ? 'Edit' : 'Add'} Meal</h3><button class="modal-close" data-close-modal>&times;</button></div>
+      <div class="field"><label>Name</label><input class="input" id="m-name" value="${meal ? escapeHtml(meal.name) : ''}"></div>
+      <div class="form-grid-2">
+        <div class="field"><label>Category</label><select class="input" id="m-cat">${categories.map(c => `<option value="${c.id}" ${meal?.categoryId===c.id?'selected':''}>${c.name}</option>`).join('')}</select></div>
+        <div class="field"><label>Price ($)</label><input class="input" type="number" step="0.01" id="m-price" value="${meal?.price ?? ''}"></div>
+      </div>
+      <div class="field"><label>Description</label><textarea class="input" id="m-desc">${meal ? escapeHtml(meal.description||'') : ''}</textarea></div>
+      <div class="field"><label>Photo URL</label><input class="input" id="m-image" placeholder="https://..." value="${meal ? escapeHtml(meal.imageUrl||'') : ''}"><span class="hint">Paste a hosted image URL, or wire up Firebase Storage upload here later.</span></div>
+      <div class="field"><label>Ingredients (comma separated)</label><input class="input" id="m-ingredients" value="${meal ? (meal.ingredients||[]).join(', ') : ''}"></div>
+      <div class="field"><label>Allergens (comma separated)</label><input class="input" id="m-allergens" value="${meal ? (meal.allergens||[]).join(', ') : ''}"></div>
+      <div class="field"><label>Calories</label><input class="input" type="number" id="m-cal" value="${meal?.nutrition?.calories ?? ''}"></div>
+      <div class="flex gap-4" style="margin-bottom:var(--sp-5)">
+        <label class="flex items-center gap-2"><input type="checkbox" id="m-available" ${meal?.available !== false ? 'checked' : ''}> Available</label>
+        <label class="flex items-center gap-2"><input type="checkbox" id="m-featured" ${meal?.featured ? 'checked' : ''}> Featured on homepage</label>
+      </div>
+      <p class="text-muted" style="font-size:var(--text-xs);margin-bottom:var(--sp-4)">Photo upload connects to Firebase Storage — wire up an &lt;input type="file"&gt; here and call uploadBytes() from js/firebase/config.js when you're ready to add real photography.</p>
+      <button class="btn btn-primary btn-block" id="save-meal">${isEdit ? 'Save Changes' : 'Add Meal'}</button>
+    `);
+
+    document.getElementById('save-meal').addEventListener('click', async () => {
+      const data = {
+        name: document.getElementById('m-name').value.trim(),
+        categoryId: document.getElementById('m-cat').value,
+        price: parseFloat(document.getElementById('m-price').value) || 0,
+        description: document.getElementById('m-desc').value.trim(),
+        ingredients: document.getElementById('m-ingredients').value.split(',').map(s=>s.trim()).filter(Boolean),
+        allergens: document.getElementById('m-allergens').value.split(',').map(s=>s.trim()).filter(Boolean),
+        nutrition: { calories: parseInt(document.getElementById('m-cal').value) || 0 },
+        imageUrl: document.getElementById('m-image').value.trim(),
+        available: document.getElementById('m-available').checked,
+        featured: document.getElementById('m-featured').checked,
+      };
+      if (!data.name || !data.categoryId) { showToast('Name and category are required', 'error'); return; }
+      try {
+        if (isEdit) await updateDoc(doc(db, 'meals', meal.id), data);
+        else await addDoc(collection(db, 'meals'), { ...data, createdAt: serverTimestamp() });
+        showToast(isEdit ? 'Meal updated' : 'Meal added', 'success');
+        close();
+        await loadMeals();
+      } catch (err) { console.error(err); showToast('Could not save meal', 'error'); }
+    });
+  }
+</script>
+</body>
+</html>

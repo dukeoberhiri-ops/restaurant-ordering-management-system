@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reservations — Ember & Salt Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/tokens.css">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/components.css">
+<link rel="stylesheet" href="../css/admin.css">
+</head>
+<body>
+<script src="../js/debug-overlay.js"></script>
+<script type="module">
+  import { initAdminPage } from '../js/admin/layout.js';
+  import { showToast, confirmDialog, formatDate, escapeHtml } from '../js/modules/ui.js';
+  import { db, collection, onSnapshot, doc, updateDoc, query, orderBy } from '../js/firebase/config.js';
+
+  let reservations = [], filterDate = '';
+
+  initAdminPage('reservations.html').then(({ content }) => {
+    content.innerHTML = `
+      <div class="flex justify-between items-center" style="margin-bottom:var(--sp-6);flex-wrap:wrap;gap:var(--sp-3)">
+        <h1 class="font-display" style="font-size:var(--text-2xl)">Reservations</h1>
+        <div class="flex gap-2">
+          <input class="input" type="date" id="date-filter">
+          <button class="btn btn-outline" id="clear-filter">Show all</button>
+        </div>
+      </div>
+      <div class="tabs" style="margin-bottom:var(--sp-5)">
+        <div class="tab active" data-status="all">All</div>
+        <div class="tab" data-status="pending">Pending</div>
+        <div class="tab" data-status="confirmed">Confirmed</div>
+        <div class="tab" data-status="cancelled">Cancelled</div>
+      </div>
+      <div class="card"><table class="data-table"><thead><tr><th>Date</th><th>Time</th><th>Guest</th><th>Guests</th><th>Notes</th><th>Status</th><th>Table</th><th></th></tr></thead><tbody id="res-body"></tbody></table></div>`;
+
+    let activeStatus = 'all';
+    document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active')); t.classList.add('active');
+      activeStatus = t.dataset.status; render();
+    }));
+    document.getElementById('date-filter').addEventListener('change', (e) => { filterDate = e.target.value; render(); });
+    document.getElementById('clear-filter').addEventListener('click', () => { filterDate = ''; document.getElementById('date-filter').value=''; render(); });
+
+    onSnapshot(query(collection(db, 'reservations'), orderBy('date', 'asc')), (snap) => {
+      reservations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      render();
+    });
+
+    function render() {
+      let list = reservations;
+      if (activeStatus !== 'all') list = list.filter(r => r.status === activeStatus);
+      if (filterDate) list = list.filter(r => r.date === filterDate);
+      const body = document.getElementById('res-body');
+      body.innerHTML = list.length ? list.map(r => `
+        <tr>
+          <td>${formatDate(r.date)}</td><td>${r.time}</td>
+          <td>${escapeHtml(r.customerName || r.customerEmail || 'Guest')}</td>
+          <td>${r.guests}</td>
+          <td class="text-muted">${escapeHtml(r.notes || '—')}</td>
+          <td><span class="badge ${statusBadge(r.status)}">${r.status}</span></td>
+          <td><input class="input" style="width:80px;padding:.4rem" placeholder="—" value="${r.tableAssigned || ''}" data-table="${r.id}"></td>
+          <td>
+            <div class="flex gap-2">
+              ${r.status === 'pending' ? `<button class="btn btn-primary btn-sm" data-confirm="${r.id}">Accept</button><button class="btn btn-ghost btn-sm" data-reject="${r.id}" style="color:var(--color-danger)">Reject</button>` : ''}
+            </div>
+          </td>
+        </tr>`).join('') : `<tr><td colspan="8"><div class="empty-state"><div class="icon">📅</div>No reservations match.</div></td></tr>`;
+
+      body.querySelectorAll('[data-confirm]').forEach(b => b.addEventListener('click', () => updateDoc(doc(db,'reservations',b.dataset.confirm), { status: 'confirmed' }).then(() => showToast('Reservation confirmed', 'success'))));
+      body.querySelectorAll('[data-reject]').forEach(b => b.addEventListener('click', async () => {
+        const ok = await confirmDialog({ title: 'Reject reservation?', confirmLabel: 'Reject', danger: true });
+        if (ok) { await updateDoc(doc(db,'reservations',b.dataset.reject), { status: 'rejected' }); showToast('Reservation rejected', 'info'); }
+      }));
+      body.querySelectorAll('[data-table]').forEach(inp => inp.addEventListener('change', () => updateDoc(doc(db,'reservations',inp.dataset.table), { tableAssigned: inp.value.trim() }).then(() => showToast('Table assigned', 'success'))));
+    }
+  });
+
+  function statusBadge(s) { return { pending:'badge-warning', confirmed:'badge-success', cancelled:'badge-danger', rejected:'badge-danger' }[s] || 'badge-muted'; }
+</script>
+</body>
+</html>

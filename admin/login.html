@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Login — Ember & Salt</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/tokens.css">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/components.css">
+<style>
+  .auth-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--color-char); padding: var(--sp-5); }
+  .auth-card { width: 100%; max-width: 400px; background: var(--color-bg-raised); border-radius: var(--radius-lg); padding: var(--sp-8); box-shadow: var(--shadow-lg); }
+</style>
+</head>
+<body>
+<script src="../js/debug-overlay.js"></script>
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="text-center" style="margin-bottom:var(--sp-6)">
+      <a href="../index.html" class="logo">Ember<span class="accent">&</span>Salt</a>
+      <p class="text-muted" style="margin-top:var(--sp-2)">Staff & admin access</p>
+    </div>
+    <form id="login-form" novalidate>
+      <div class="field"><label for="email">Email</label><input class="input" type="email" id="email" required></div>
+      <div class="field"><label for="password">Password</label><input class="input" type="password" id="password" required></div>
+      <button class="btn btn-dark btn-block btn-lg" type="submit" id="submit-btn">Sign In</button>
+    </form>
+    <p class="text-center" style="margin-top:var(--sp-5)"><a href="../customer/login.html" class="text-muted" style="font-size:var(--text-xs)">← Back to customer login</a></p>
+  </div>
+</div>
+<script type="module">
+  import { showToast } from '../js/modules/ui.js';
+  import { loginUser } from '../js/modules/auth.js';
+  const form = document.getElementById('login-form');
+  const btn = document.getElementById('submit-btn');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    btn.disabled = true; btn.textContent = 'Signing in…';
+    try {
+      const { profile } = await loginUser(document.getElementById('email').value.trim(), document.getElementById('password').value);
+      if (profile?.role !== 'admin') { showToast('This account does not have admin access.', 'error'); btn.disabled = false; btn.textContent = 'Sign In'; return; }
+      window.location.href = 'dashboard.html';
+    } catch (err) {
+      showToast('Incorrect email or password.', 'error');
+      btn.disabled = false; btn.textContent = 'Sign In';
+    }
+  });
+</script>
+</body>
+</html>
