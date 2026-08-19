@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Demo Data — Ember & Salt Admin</title>
+<title>Demo Tools — Ember & Salt Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../css/tokens.css">
 <link rel="stylesheet" href="../css/base.css">
@@ -10,8 +10,6 @@
 <link rel="stylesheet" href="../css/admin.css">
 <style>
   .demo-log { font-family: var(--font-mono); font-size: var(--text-sm); white-space: pre-wrap; background: var(--color-bg-sunken); border-radius: var(--radius-md); padding: var(--sp-4); max-height: 320px; overflow-y: auto; margin-top: var(--sp-5); }
-  .demo-card { display: flex; gap: var(--sp-4); align-items: flex-start; }
-  .demo-card .icon { font-size: 1.8rem; }
 </style>
 </head>
 <body>
@@ -19,116 +17,73 @@
 <script type="module">
   import { initAdminPage } from '../js/admin/layout.js';
   import { showToast, confirmDialog } from '../js/modules/ui.js';
-  import { db, collection, getDocs, addDoc, deleteDoc, doc, serverTimestamp, Timestamp, query, where } from '../js/firebase/config.js';
+  import { db, collection, query, where, getDocs, limit } from '../js/firebase/config.js';
+  import { DEMO_ADMIN_EMAIL, DEMO_USER_EMAIL, seedAllDemoData, resetDemoData } from '../js/modules/demo-auth.js';
 
-  // Real, free-to-use stock photography (Pexels — free for commercial use, no attribution
-  // required). Swap these for your own food photography anytime from the Menu page.
-  const CATEGORIES = [
-    { id: 'starters', name: 'Starters', description: 'Small plates from the hearth', order: 1 },
-    { id: 'mains', name: 'Mains', description: 'Whole fish, roasts & bowls', order: 2 },
-    { id: 'grill', name: 'From the Grill', description: 'Charred over live oak', order: 3 },
-    { id: 'sides', name: 'Sides', description: 'Vegetables, grains & bread', order: 4 },
-    { id: 'desserts', name: 'Desserts', description: 'Sweet endings', order: 5 },
-    { id: 'drinks', name: 'Drinks', description: 'Wine, cocktails & more', order: 6 },
-  ];
+  let content, log, user;
 
-  const MEALS = [
-    { name: 'Charred Octopus', categoryId: 'starters', price: 18, imageUrl: 'https://images.pexels.com/photos/14885388/pexels-photo-14885388.jpeg?auto=compress&cs=tinysrgb&w=800', description: 'Oak-grilled octopus, smoked paprika, fingerling potato.', ingredients: ['octopus','potato','smoked paprika','olive oil'], allergens: ['shellfish'], nutrition: { calories: 320 }, available: true, featured: true },
-    { name: 'Salt-Baked Beets', categoryId: 'starters', price: 12, imageUrl: 'https://images.pexels.com/photos/2097090/pexels-photo-2097090.jpeg?auto=compress&cs=tinysrgb&w=800', description: 'Whipped goat cheese, citrus, toasted hazelnut.', ingredients: ['beets','goat cheese','hazelnut','citrus'], allergens: ['dairy','tree nuts'], nutrition: { calories: 260 }, available: true, featured: false },
-    { name: 'Whole Grilled Branzino', categoryId: 'mains', price: 34, imageUrl: 'https://images.pexels.com/photos/4013723/pexels-photo-4013723.jpeg?auto=compress&cs=tinysrgb&w=800', description: 'Whole fish over oak, lemon-herb oil, charred fennel.', ingredients: ['branzino','fennel','lemon','herbs'], allergens: ['fish'], nutrition: { calories: 540 }, available: true, featured: true },
-    { name: 'Oak-Roasted Chicken', categoryId: 'mains', price: 28, imageUrl: 'https://images.pexels.com/photos/17462036/pexels-photo-17462036.jpeg?auto=compress&cs=tinysrgb&w=800', description: 'Half chicken, brined 24 hours, pan jus.', ingredients: ['chicken','herbs','butter'], allergens: ['dairy'], nutrition: { calories: 610 }, available: true, featured: false },
-    { name: 'Dry-Aged Ribeye', categoryId: 'grill', price: 52, imageUrl: 'https://images.pexels.com/photos/36691313/pexels-photo-36691313.jpeg?auto=compress&cs=tinysrgb&w=800', description: '28-day dry-aged, bone marrow butter.', ingredients: ['beef','bone marrow','herbs'], allergens: ['dairy'], nutrition: { calories: 780 }, available: true, featured: true },
-    { name: 'Grilled Corn', categoryId: 'sides', price: 9, imageUrl: 'https://images.pexels.com/photos/13398481/pexels-photo-13398481.jpeg?auto=compress&cs=tinysrgb&w=800', description: 'Chili-lime butter, cotija, cilantro.', ingredients: ['corn','cotija','chili','lime'], allergens: ['dairy'], nutrition: { calories: 210 }, available: true, featured: false },
-    { name: 'Charred Bread & Butter', categoryId: 'sides', price: 7, imageUrl: 'https://images.pexels.com/photos/2661996/pexels-photo-2661996.jpeg?auto=compress&cs=tinysrgb&w=800', description: 'Sourdough, smoked sea salt butter.', ingredients: ['sourdough','butter','sea salt'], allergens: ['gluten','dairy'], nutrition: { calories: 240 }, available: true, featured: false },
-    { name: 'Burnt Basque Cheesecake', categoryId: 'desserts', price: 11, imageUrl: 'https://images.pexels.com/photos/6607325/pexels-photo-6607325.jpeg?auto=compress&cs=tinysrgb&w=800', description: 'Caramelized top, molten center.', ingredients: ['cream cheese','eggs','sugar'], allergens: ['dairy','eggs'], nutrition: { calories: 430 }, available: true, featured: true },
-    { name: 'Affogato', categoryId: 'desserts', price: 8, imageUrl: 'https://images.pexels.com/photos/9442600/pexels-photo-9442600.jpeg?auto=compress&cs=tinysrgb&w=800', description: 'Vanilla gelato, espresso.', ingredients: ['gelato','espresso'], allergens: ['dairy'], nutrition: { calories: 220 }, available: true, featured: false },
-    { name: 'Coastal Negroni', categoryId: 'drinks', price: 14, imageUrl: 'https://images.pexels.com/photos/1304540/pexels-photo-1304540.jpeg?auto=compress&cs=tinysrgb&w=800', description: 'Gin, salted grapefruit, campari.', ingredients: ['gin','campari','grapefruit'], allergens: [], nutrition: { calories: 180 }, available: true, featured: false },
-    { name: 'Oak-Aged Malbec', categoryId: 'drinks', price: 13, imageUrl: 'https://images.pexels.com/photos/391213/pexels-photo-391213.jpeg?auto=compress&cs=tinysrgb&w=800', description: 'By the glass, Argentina.', ingredients: ['red wine'], allergens: ['sulfites'], nutrition: { calories: 125 }, available: true, featured: false },
-  ];
+  initAdminPage('demo-data.html').then(async (ctx) => {
+    content = ctx.content; user = ctx.user;
 
-  const PROMOS = [
-    { code: 'WELCOME10', type: 'percentage', value: 10, description: '10% off your first order', usageLimit: 500, usedCount: 0, minOrderValue: 0 },
-    { code: 'FREESHIP', type: 'free_delivery', value: 0, description: 'Free delivery', usageLimit: 1000, usedCount: 0, minOrderValue: 25 },
-    { code: 'SAVE15', type: 'fixed', value: 15, description: '$15 off orders over $75', usageLimit: 200, usedCount: 0, minOrderValue: 75 },
-  ];
+    // Hard guard, independent of the sidebar link: gated by exact email, not
+    // role, so a real client's own admin account can never reach these
+    // controls even by navigating here directly.
+    if (user.email !== DEMO_ADMIN_EMAIL) {
+      content.innerHTML = `<div class="empty-state"><div class="icon">🔒</div>This page is restricted to the demo environment.</div>`;
+      return;
+    }
 
-  const DEMO_NAMES = ['Alicia Moreno','Ben Whitfield','Priya Nair','Marcus Webb','Dana Kessler','Theo Landry','Sofia Reyes','Jamal Carter','Nina Petrov','Owen Bright'];
-  const STATUSES_DINE = ['pending','accepted','preparing','ready','delivered','delivered','cancelled'];
-  const STATUSES_DELIVERY = ['pending','accepted','preparing','ready','out_for_delivery','delivered','delivered'];
-  const ORDER_TYPES = ['dine_in','pickup','delivery'];
-  const RES_TIMES = ['5:30 PM','6:00 PM','6:30 PM','7:00 PM','7:30 PM','8:00 PM','8:30 PM'];
-  const RES_STATUSES = ['pending','confirmed','confirmed','confirmed','cancelled'];
-
-  function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-  function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
-  function daysAgoTimestamp(days) {
-    const d = new Date();
-    d.setDate(d.getDate() - days);
-    d.setHours(randInt(11, 21), randInt(0, 59));
-    return Timestamp.fromDate(d);
-  }
-
-  let user, content, log;
-  initAdminPage('demo-data.html').then(({ user: u, content: c }) => {
-    user = u; content = c;
     content.innerHTML = `
-      <h1 class="font-display" style="font-size:var(--text-2xl);margin-bottom:var(--sp-2)">Demo Data</h1>
-      <p class="text-muted" style="margin-bottom:var(--sp-6)">Populate this Firebase project with a full menu and a batch of realistic sample orders &amp; reservations — everything you need to walk a client through the ordering flow, the admin kanban board, and the dashboard without placing real orders yourself.</p>
+      <h1 class="font-display" style="font-size:var(--text-2xl);margin-bottom:var(--sp-2)">Demo Tools</h1>
+      <p class="text-muted" style="margin-bottom:var(--sp-6)">You're signed in as the Demo Admin. Sample data is normally seeded automatically the first time anyone uses "Login as Demo" — use these controls if you want to force a clean reset.</p>
 
-      <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:var(--sp-5)">
-        <div class="card demo-card">
-          <span class="icon">🍽️</span>
-          <div>
-            <h3 style="margin-bottom:var(--sp-2)">Menu</h3>
-            <p class="text-muted" style="font-size:var(--text-sm);margin-bottom:var(--sp-4)">6 categories, 11 dishes with real photography, and 3 promo codes.</p>
-            <button class="btn btn-outline btn-block" id="seed-menu-btn">Seed Menu</button>
-          </div>
-        </div>
-        <div class="card demo-card">
-          <span class="icon">🧾</span>
-          <div>
-            <h3 style="margin-bottom:var(--sp-2)">Orders</h3>
-            <p class="text-muted" style="font-size:var(--text-sm);margin-bottom:var(--sp-4)">15 randomized orders across every status, order type, and the last 7 days.</p>
-            <button class="btn btn-outline btn-block" id="seed-orders-btn">Seed Orders</button>
-          </div>
-        </div>
-        <div class="card demo-card">
-          <span class="icon">📅</span>
-          <div>
-            <h3 style="margin-bottom:var(--sp-2)">Reservations</h3>
-            <p class="text-muted" style="font-size:var(--text-sm);margin-bottom:var(--sp-4)">8 sample bookings spread across today and the coming week.</p>
-            <button class="btn btn-outline btn-block" id="seed-res-btn">Seed Reservations</button>
-          </div>
+      <div class="card" style="display:flex;gap:var(--sp-4);align-items:flex-start;margin-bottom:var(--sp-5)">
+        <span style="font-size:1.8rem">🔗</span>
+        <div>
+          <h3 style="margin-bottom:var(--sp-2)">How the demo accounts connect</h3>
+          <p class="text-muted" style="font-size:var(--text-sm)">Every seeded order and reservation is owned by the real <strong>Demo User</strong> account (<span class="mono">${DEMO_USER_EMAIL}</span>), not a fake record — so switching between "Login as Demo Admin" and "Login as Demo User" shows a genuine two-sided relationship: the guest's own order history on one side, and this admin's live kanban board and dashboard on the other.</p>
         </div>
       </div>
 
-      <button class="btn btn-primary btn-lg btn-block" id="seed-all-btn" style="margin-top:var(--sp-6)">Seed Everything</button>
-      <p class="text-muted" style="font-size:var(--text-xs);text-align:center;margin-top:var(--sp-3)">Sample orders and reservations are stored under your own admin account, since Firestore rules require a real signed-in owner — this only affects the "customer" field on the record, not how they appear in the admin dashboard, kanban board, or reports.</p>
-      <div class="demo-log" id="log" style="display:none"></div>
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:var(--sp-5)">
+        <div class="card">
+          <h3 style="margin-bottom:var(--sp-2)">Seed Demo Data</h3>
+          <p class="text-muted" style="font-size:var(--text-sm);margin-bottom:var(--sp-4)">Adds the menu, 15 orders, and 8 reservations if they don't already exist. Safe to click even if already seeded — it skips instead of duplicating.</p>
+          <button class="btn btn-outline btn-block" id="seed-btn">Seed Demo Data</button>
+        </div>
+        <div class="card" style="border-color:var(--color-danger)">
+          <h3 style="color:var(--color-danger);margin-bottom:var(--sp-2)">Reset Demo Data</h3>
+          <p class="text-muted" style="font-size:var(--text-sm);margin-bottom:var(--sp-4)">Wipes every demo-tagged document across the whole app and reseeds clean. Demo accounts and their Auth logins are untouched.</p>
+          <button class="btn btn-outline btn-block" id="reset-btn" style="color:var(--color-danger);border-color:var(--color-danger)">Reset Demo Data</button>
+        </div>
+      </div>
 
-      <div class="card" style="margin-top:var(--sp-8);border-color:var(--color-danger)">
-        <h3 style="color:var(--color-danger);margin-bottom:var(--sp-2)">Danger zone</h3>
-        <p class="text-muted" style="font-size:var(--text-sm);margin-bottom:var(--sp-4)">Remove every demo order and reservation created by this tool. Real menu items and customer accounts are not touched.</p>
-        <button class="btn btn-outline" id="clear-demo-btn" style="color:var(--color-danger);border-color:var(--color-danger)">Clear demo orders &amp; reservations</button>
-      </div>`;
+      <div class="demo-log" id="log" style="display:none"></div>`;
 
     log = document.getElementById('log');
-    document.getElementById('seed-menu-btn').addEventListener('click', () => runTask(seedMenu));
-    document.getElementById('seed-orders-btn').addEventListener('click', () => runTask(() => seedOrders()));
-    document.getElementById('seed-res-btn').addEventListener('click', () => runTask(() => seedReservations()));
-    document.getElementById('seed-all-btn').addEventListener('click', () => runTask(async () => {
-      await seedMenu();
-      await seedOrders();
-      await seedReservations();
-    }));
-    document.getElementById('clear-demo-btn').addEventListener('click', async () => {
-      const ok = await confirmDialog({ title: 'Clear demo data?', message: 'This deletes every order and reservation tagged as demo data. This cannot be undone.', confirmLabel: 'Clear demo data', danger: true });
-      if (ok) runTask(clearDemoData);
+
+    document.getElementById('seed-btn').addEventListener('click', async () => {
+      runTask(async () => {
+        const demoUserUid = await getDemoUserUid();
+        await seedAllDemoData(demoUserUid, write);
+      });
+    });
+
+    document.getElementById('reset-btn').addEventListener('click', async () => {
+      const ok = await confirmDialog({ title: 'Reset demo data?', message: 'This deletes every demo-tagged menu item, order, and reservation, then reseeds clean. This cannot be undone.', confirmLabel: 'Reset demo data', danger: true });
+      if (ok) runTask(() => resetDemoData(write));
     });
   });
 
+  async function getDemoUserUid() {
+    const snap = await getDocs(query(collection(db, 'users'), where('email', '==', DEMO_USER_EMAIL), limit(1)));
+    if (snap.empty) throw new Error('Demo User account not found yet — log in as Demo User at least once first.');
+    return snap.docs[0].id;
+  }
+
   async function runTask(fn) {
     log.style.display = 'block';
+    log.textContent = '';
     write('Working…');
     try {
       await fn();
@@ -136,93 +91,11 @@
       showToast('Demo data updated', 'success');
     } catch (err) {
       console.error(err);
-      write('Error: ' + err.message);
+      write('Error: ' + (err.code || err.message));
       showToast('Something went wrong — see the log below', 'error');
     }
   }
   function write(msg) { log.textContent += msg + '\n'; log.scrollTop = log.scrollHeight; }
-
-  async function seedMenu() {
-    const existing = await getDocs(collection(db, 'categories'));
-    if (existing.empty) {
-      for (const c of CATEGORIES) { await addDoc(collection(db, 'categories'), c); write(`✓ Category: ${c.name}`); }
-      for (const m of MEALS) { await addDoc(collection(db, 'meals'), m); write(`✓ Meal: ${m.name}`); }
-      for (const p of PROMOS) { await addDoc(collection(db, 'promoCodes'), p); write(`✓ Promo: ${p.code}`); }
-    } else {
-      write('Menu already has categories — skipping to avoid duplicates.');
-    }
-  }
-
-  async function seedOrders() {
-    const mealsSnap = await getDocs(collection(db, 'meals'));
-    const meals = mealsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (!meals.length) { write('No meals found — seed the menu first.'); return; }
-
-    for (let i = 0; i < 15; i++) {
-      const orderType = rand(ORDER_TYPES);
-      const statusPool = orderType === 'delivery' ? STATUSES_DELIVERY : STATUSES_DINE;
-      const status = rand(statusPool);
-      const itemCount = randInt(1, 4);
-      const items = Array.from({ length: itemCount }).map(() => {
-        const m = rand(meals);
-        return { mealId: m.id, name: m.name, price: m.price, imageUrl: m.imageUrl, qty: randInt(1, 3) };
-      });
-      const subtotal = items.reduce((s, it) => s + it.price * it.qty, 0);
-      const deliveryFee = orderType === 'delivery' ? 4.99 : 0;
-      const tax = subtotal * 0.0825;
-      const total = subtotal + deliveryFee + tax;
-      await addDoc(collection(db, 'orders'), {
-        userId: user.uid,
-        customerName: rand(DEMO_NAMES),
-        customerEmail: 'demo@example.com',
-        items, orderType,
-        tableNumber: orderType === 'dine_in' ? String(randInt(1, 20)) : null,
-        deliveryAddress: orderType === 'delivery' ? '412 Harbor Row, Coastal City' : null,
-        scheduledFor: null, notes: '', promo: null,
-        subtotal, discount: 0, deliveryFee, tax, total,
-        status, paymentStatus: status === 'delivered' ? 'paid' : 'unpaid',
-        statusHistory: [{ status, at: new Date().toISOString() }],
-        isDemo: true,
-        createdAt: daysAgoTimestamp(randInt(0, 6))
-      });
-      write(`✓ Order for ${items.length} item(s) · ${orderType} · ${status}`);
-    }
-  }
-
-  async function seedReservations() {
-    const today = new Date();
-    for (let i = 0; i < 8; i++) {
-      const dayOffset = randInt(0, 6);
-      const d = new Date(today);
-      d.setDate(d.getDate() + dayOffset);
-      const date = d.toISOString().split('T')[0];
-      const time = rand(RES_TIMES);
-      await addDoc(collection(db, 'reservations'), {
-        userId: user.uid,
-        customerName: rand(DEMO_NAMES),
-        customerEmail: 'demo@example.com',
-        date, time, slotKey: `${date}_${time}`,
-        guests: randInt(2, 8),
-        notes: rand(['', '', 'Window seat if possible', 'Celebrating an anniversary', 'Allergic to shellfish']),
-        status: rand(RES_STATUSES),
-        tableAssigned: null,
-        isDemo: true,
-        createdAt: serverTimestamp()
-      });
-      write(`✓ Reservation · ${date} ${time}`);
-    }
-  }
-
-  async function clearDemoData() {
-    const [ordersSnap, resSnap] = await Promise.all([
-      getDocs(query(collection(db, 'orders'), where('isDemo', '==', true))),
-      getDocs(query(collection(db, 'reservations'), where('isDemo', '==', true)))
-    ]);
-    for (const d of ordersSnap.docs) { await deleteDoc(doc(db, 'orders', d.id)); }
-    write(`✓ Removed ${ordersSnap.size} demo orders`);
-    for (const d of resSnap.docs) { await deleteDoc(doc(db, 'reservations', d.id)); }
-    write(`✓ Removed ${resSnap.size} demo reservations`);
-  }
 </script>
 </body>
 </html>

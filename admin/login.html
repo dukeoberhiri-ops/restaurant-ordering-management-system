@@ -26,11 +26,18 @@
       <button class="btn btn-dark btn-block btn-lg" type="submit" id="submit-btn">Sign In</button>
     </form>
     <p class="text-center" style="margin-top:var(--sp-5)"><a href="../customer/login.html" class="text-muted" style="font-size:var(--text-xs)">← Back to customer login</a></p>
+    <div class="flex items-center gap-3" style="margin:var(--sp-6) 0">
+      <div style="flex:1;height:1px;background:var(--color-line)"></div>
+      <span class="text-muted" style="font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.06em">Just exploring?</span>
+      <div style="flex:1;height:1px;background:var(--color-line)"></div>
+    </div>
+    <button class="btn btn-outline btn-block" id="demo-admin-btn">Login as Demo Admin</button>
   </div>
 </div>
 <script type="module">
   import { showToast } from '../js/modules/ui.js';
   import { loginUser } from '../js/modules/auth.js';
+  import { loginAsDemoAdmin } from '../js/modules/demo-auth.js';
   const form = document.getElementById('login-form');
   const btn = document.getElementById('submit-btn');
   form.addEventListener('submit', async (e) => {
@@ -43,6 +50,19 @@
     } catch (err) {
       showToast('Incorrect email or password.', 'error');
       btn.disabled = false; btn.textContent = 'Sign In';
+    }
+  });
+
+  document.getElementById('demo-admin-btn').addEventListener('click', async (e) => {
+    const demoBtn = e.currentTarget;
+    demoBtn.disabled = true; demoBtn.textContent = 'Setting up demo…';
+    try {
+      await loginAsDemoAdmin();
+      window.location.href = 'dashboard.html';
+    } catch (err) {
+      console.error(err);
+      showToast('Could not start the demo: ' + (err.code || err.message), 'error');
+      demoBtn.disabled = false; demoBtn.textContent = 'Login as Demo Admin';
     }
   });
 </script>

@@ -14,11 +14,14 @@
 <script type="module">
   import { initAdminPage } from '../js/admin/layout.js';
   import { skeletonCards, formatCurrency } from '../js/modules/ui.js';
-  import { db, collection, getDocs, query, where } from '../js/firebase/config.js';
+  import { db, collection, onSnapshot, query, where } from '../js/firebase/config.js';
 
   initAdminPage('dashboard.html').then(async ({ content }) => {
     content.innerHTML = `
-      <h1 class="font-display" style="font-size:var(--text-2xl);margin-bottom:var(--sp-6)">Dashboard</h1>
+      <div class="flex justify-between items-center" style="margin-bottom:var(--sp-6)">
+        <h1 class="font-display" style="font-size:var(--text-2xl)">Dashboard</h1>
+        <span class="badge badge-success" id="live-badge">● Live</span>
+      </div>
       <div class="stat-grid" id="stats">${skeletonCards(4, '110px')}</div>
       <div class="admin-grid-2" id="lower-grid">
         <div class="card"><h3 class="font-display" style="font-size:var(--text-lg);margin-bottom:var(--sp-2)">Revenue — last 7 days</h3><div class="bar-chart" id="revenue-chart" style="margin-bottom:var(--sp-6)"></div></div>
@@ -27,23 +30,45 @@
       <div class="admin-grid-2-even" style="margin-top:var(--sp-6)">
         <div class="card"><h3 class="font-display" style="font-size:var(--text-lg);margin-bottom:var(--sp-4)">Order pipeline</h3><div id="pipeline"></div></div>
         <div class="card"><h3 class="font-display" style="font-size:var(--text-lg);margin-bottom:var(--sp-4)">Today's reservations</h3><div id="today-res"></div></div>
-      </div>`;
+      </div>
+      <div id="dash-error"></div>`;
 
-    try {
-      const [ordersSnap, reservationsSnap, customersSnap, reviewsSnap] = await Promise.all([
-        getDocs(collection(db, 'orders')),
-        getDocs(collection(db, 'reservations')),
-        getDocs(query(collection(db, 'users'), where('role', '==', 'customer'))),
-        getDocs(collection(db, 'reviews'))
-      ]);
-      const orders = ordersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const reservations = reservationsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const customers = customersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const reviews = reviewsSnap.docs.map(d => d.data());
+    // Cache of the three live collections; every listener update recomputes
+    // the whole dashboard from whatever's currently cached so nothing goes
+    // stale and nothing needs page reloads to reflect new orders/bookings.
+    const cache = { orders: null, reservations: null, customers: null };
+
+    function onError(label) {
+      return (err) => {
+        console.error(err);
+        document.getElementById('live-badge').outerHTML = `<span class="badge badge-danger">● Offline</span>`;
+        document.getElementById('dash-error').innerHTML =
+          `<div class="empty-state"><div class="icon">⚠️</div>Couldn't load ${label} (${err.code || err.message}). Dashboard numbers may be incomplete — this is surfaced, not hidden, so you know to check your connection or Firestore rules.</div>`;
+      };
+    }
+
+    onSnapshot(collection(db, 'orders'), (snap) => {
+      cache.orders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      render();
+    }, onError('orders'));
+
+    onSnapshot(collection(db, 'reservations'), (snap) => {
+      cache.reservations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      render();
+    }, onError('reservations'));
+
+    onSnapshot(query(collection(db, 'users'), where('role', '==', 'customer')), (snap) => {
+      cache.customers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      render();
+    }, onError('customers'));
+
+    function render() {
+      // Wait until every collection has reported at least once, so early
+      // partial renders don't flash misleading zeros.
+      if (!cache.orders || !cache.reservations || !cache.customers) return;
+      const { orders, reservations, customers } = cache;
 
       const revenue = orders.filter(o => o.status !== 'cancelled').reduce((s, o) => s + (o.total || 0), 0);
-      const avgOrder = orders.length ? revenue / orders.filter(o => o.status !== 'cancelled').length : 0;
-      const avgRating = reviews.length ? (reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length).toFixed(1) : '—';
 
       document.getElementById('stats').innerHTML = [
         { label: 'Total Revenue', value: formatCurrency(revenue) },
@@ -52,36 +77,28 @@
         { label: 'Customers', value: customers.length },
       ].map(s => `<div class="stat-card"><div class="text-muted" style="font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.06em">${s.label}</div><div class="stat-value">${s.value}</div></div>`).join('');
 
-      // Revenue by day of week (last 7 real days if data has createdAt, else demo distribution)
       const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
       const byDay = new Array(7).fill(0);
       orders.forEach(o => { if (o.createdAt?.toDate) byDay[o.createdAt.toDate().getDay()] += (o.total || 0); });
       const max = Math.max(...byDay, 1);
       document.getElementById('revenue-chart').innerHTML = byDay.map((v, i) => `<div class="bar" style="height:${Math.max((v/max)*140,4)}px"><span class="bar-label">${days[i]}</span></div>`).join('');
 
-      // Popular meals
       const mealCounts = {};
       orders.forEach(o => (o.items || []).forEach(i => { mealCounts[i.name] = (mealCounts[i.name] || 0) + i.qty; }));
       const top = Object.entries(mealCounts).sort((a,b) => b[1]-a[1]).slice(0,5);
       document.getElementById('popular-meals').innerHTML = top.length ? top.map(([name, qty]) => `
         <div class="flex justify-between" style="padding:var(--sp-2) 0;border-bottom:1px solid var(--color-line)"><span>${name}</span><strong class="mono">${qty}×</strong></div>`).join('') : `<div class="empty-state"><div class="icon">🍽️</div>No orders yet.</div>`;
 
-      // Pipeline counts
       const statuses = ['pending','accepted','preparing','ready','out_for_delivery','delivered'];
       document.getElementById('pipeline').innerHTML = statuses.map(s => {
         const count = orders.filter(o => o.status === s).length;
         return `<div class="flex justify-between items-center" style="padding:var(--sp-2) 0"><span class="text-muted" style="text-transform:capitalize">${s.replace('_',' ')}</span><span class="badge badge-ember">${count}</span></div>`;
       }).join('');
 
-      // Today's reservations
       const todayStr = new Date().toISOString().split('T')[0];
       const todays = reservations.filter(r => r.date === todayStr && r.status !== 'cancelled');
       document.getElementById('today-res').innerHTML = todays.length ? todays.map(r => `
         <div class="flex justify-between" style="padding:var(--sp-2) 0;border-bottom:1px solid var(--color-line)"><span>${r.time} — ${r.customerName || 'Guest'}</span><span class="text-muted">${r.guests} guests</span></div>`).join('') : `<div class="empty-state"><div class="icon">📅</div>No reservations today.</div>`;
-
-    } catch (err) {
-      console.error(err);
-      content.insertAdjacentHTML('beforeend', `<div class="empty-state"><div class="icon">⚠️</div>Couldn't load analytics. Check your Firebase config and rules.</div>`);
     }
   });
 </script>

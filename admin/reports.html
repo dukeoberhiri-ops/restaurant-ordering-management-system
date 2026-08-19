@@ -14,11 +14,16 @@
 <script type="module">
   import { initAdminPage } from '../js/admin/layout.js';
   import { showToast, formatCurrency } from '../js/modules/ui.js';
-  import { db, collection, getDocs } from '../js/firebase/config.js';
+  import { db, collection, onSnapshot } from '../js/firebase/config.js';
+
+  let currentOrders = [];
 
   initAdminPage('reports.html').then(async ({ content }) => {
     content.innerHTML = `
-      <h1 class="font-display" style="font-size:var(--text-2xl);margin-bottom:var(--sp-6)">Reports</h1>
+      <div class="flex justify-between items-center" style="margin-bottom:var(--sp-6)">
+        <h1 class="font-display" style="font-size:var(--text-2xl)">Reports</h1>
+        <span class="badge badge-success" id="live-badge">● Live</span>
+      </div>
       <div class="card" style="margin-bottom:var(--sp-6)">
         <h3 class="font-display" style="font-size:var(--text-lg);margin-bottom:var(--sp-4)">Sales summary</h3>
         <div class="stat-grid" id="sales-stats"></div>
@@ -29,11 +34,32 @@
           <button class="btn btn-outline btn-sm" id="export-csv">Export CSV</button>
         </div>
         <table class="data-table"><thead><tr><th>Date</th><th>Customer</th><th>Type</th><th>Status</th><th>Total</th></tr></thead><tbody id="orders-body"></tbody></table>
-      </div>`;
+      </div>
+      <div id="reports-error"></div>`;
 
-    const snap = await getDocs(collection(db, 'orders'));
-    const orders = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+    onSnapshot(collection(db, 'orders'), (snap) => {
+      currentOrders = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      render();
+    }, (err) => {
+      console.error(err);
+      document.getElementById('live-badge').outerHTML = `<span class="badge badge-danger">● Offline</span>`;
+      document.getElementById('reports-error').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div>Couldn't load orders (${err.code || err.message}). Report figures below may be incomplete.</div>`;
+    });
 
+    document.getElementById('export-csv').addEventListener('click', () => {
+      if (!currentOrders.length) { showToast('Nothing to export yet', 'error'); return; }
+      const rows = [['Order ID','Date','Customer','Email','Type','Status','Payment','Subtotal','Discount','Tax','Total']];
+      currentOrders.forEach(o => rows.push([o.id, o.createdAt?.toDate ? o.createdAt.toDate().toISOString() : '', o.customerName||'', o.customerEmail||'', o.orderType||'', o.status||'', o.paymentStatus||'', o.subtotal||0, o.discount||0, o.tax||0, o.total||0]));
+      const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = `sales-report-${new Date().toISOString().split('T')[0]}.csv`; a.click();
+      showToast('CSV exported', 'success');
+    });
+  });
+
+  function render() {
+    const orders = currentOrders;
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfWeek = new Date(startOfDay); startOfWeek.setDate(startOfDay.getDate() - startOfDay.getDay());
@@ -51,17 +77,7 @@
 
     document.getElementById('orders-body').innerHTML = orders.slice(0, 100).map(o => `
       <tr><td>${o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString() : '—'}</td><td>${o.customerName||o.customerEmail||'Guest'}</td><td>${(o.orderType||'').replace('_',' ')}</td><td><span class="badge badge-muted">${o.status}</span></td><td>${formatCurrency(o.total)}</td></tr>`).join('');
-
-    document.getElementById('export-csv').addEventListener('click', () => {
-      const rows = [['Order ID','Date','Customer','Email','Type','Status','Payment','Subtotal','Discount','Tax','Total']];
-      orders.forEach(o => rows.push([o.id, o.createdAt?.toDate ? o.createdAt.toDate().toISOString() : '', o.customerName||'', o.customerEmail||'', o.orderType||'', o.status||'', o.paymentStatus||'', o.subtotal||0, o.discount||0, o.tax||0, o.total||0]));
-      const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob); a.download = `sales-report-${new Date().toISOString().split('T')[0]}.csv`; a.click();
-      showToast('CSV exported', 'success');
-    });
-  });
+  }
 </script>
 </body>
 </html>

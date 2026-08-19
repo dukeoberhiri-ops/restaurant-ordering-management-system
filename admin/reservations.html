@@ -14,7 +14,7 @@
 <script type="module">
   import { initAdminPage } from '../js/admin/layout.js';
   import { showToast, confirmDialog, formatDate, escapeHtml } from '../js/modules/ui.js';
-  import { db, collection, onSnapshot, doc, updateDoc, query, orderBy } from '../js/firebase/config.js';
+  import { db, collection, onSnapshot, doc, updateDoc, query, orderBy, increment } from '../js/firebase/config.js';
 
   let reservations = [], filterDate = '';
 
@@ -68,12 +68,24 @@
           </td>
         </tr>`).join('') : `<tr><td colspan="8"><div class="empty-state"><div class="icon">📅</div>No reservations match.</div></td></tr>`;
 
-      body.querySelectorAll('[data-confirm]').forEach(b => b.addEventListener('click', () => updateDoc(doc(db,'reservations',b.dataset.confirm), { status: 'confirmed' }).then(() => showToast('Reservation confirmed', 'success'))));
+      body.querySelectorAll('[data-confirm]').forEach(b => b.addEventListener('click', () => updateDoc(doc(db,'reservations',b.dataset.confirm), { status: 'confirmed' }).then(() => showToast('Reservation confirmed', 'success')).catch(err => { console.error(err); showToast('Could not confirm: ' + (err.code || err.message), 'error'); })));
       body.querySelectorAll('[data-reject]').forEach(b => b.addEventListener('click', async () => {
         const ok = await confirmDialog({ title: 'Reject reservation?', confirmLabel: 'Reject', danger: true });
-        if (ok) { await updateDoc(doc(db,'reservations',b.dataset.reject), { status: 'rejected' }); showToast('Reservation rejected', 'info'); }
+        if (!ok) return;
+        const target = reservations.find(x => x.id === b.dataset.reject);
+        try {
+          await updateDoc(doc(db,'reservations',b.dataset.reject), { status: 'rejected' });
+          if (target?.slotKey) {
+            try { await updateDoc(doc(db, 'availability', target.slotKey), { count: increment(-1) }); }
+            catch (e) { console.warn('Could not release availability slot', e); }
+          }
+          showToast('Reservation rejected', 'info');
+        } catch (err) {
+          console.error(err);
+          showToast('Could not reject: ' + (err.code || err.message), 'error');
+        }
       }));
-      body.querySelectorAll('[data-table]').forEach(inp => inp.addEventListener('change', () => updateDoc(doc(db,'reservations',inp.dataset.table), { tableAssigned: inp.value.trim() }).then(() => showToast('Table assigned', 'success'))));
+      body.querySelectorAll('[data-table]').forEach(inp => inp.addEventListener('change', () => updateDoc(doc(db,'reservations',inp.dataset.table), { tableAssigned: inp.value.trim() }).then(() => showToast('Table assigned', 'success')).catch(err => { console.error(err); showToast('Could not assign table: ' + (err.code || err.message), 'error'); })));
     }
   });
 

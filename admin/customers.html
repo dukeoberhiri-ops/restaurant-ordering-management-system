@@ -14,19 +14,28 @@
 <script type="module">
   import { initAdminPage } from '../js/admin/layout.js';
   import { showToast, confirmDialog, debounce, escapeHtml, openModal, formatDateTime } from '../js/modules/ui.js';
-  import { db, collection, getDocs, query, where, updateDoc, doc } from '../js/firebase/config.js';
+  import { db, collection, onSnapshot, getDocs, query, where, updateDoc, doc } from '../js/firebase/config.js';
 
   let customers = [];
 
   initAdminPage('customers.html').then(async ({ content }) => {
     content.innerHTML = `
-      <h1 class="font-display" style="font-size:var(--text-2xl);margin-bottom:var(--sp-6)">Customers</h1>
+      <div class="flex justify-between items-center" style="margin-bottom:var(--sp-6)">
+        <h1 class="font-display" style="font-size:var(--text-2xl)">Customers</h1>
+        <span class="badge badge-success" id="live-badge">● Live</span>
+      </div>
       <input class="input" id="cust-search" placeholder="Search by name or email…" style="max-width:320px;margin-bottom:var(--sp-5)">
-      <div class="card"><table class="data-table"><thead><tr><th>Name</th><th>Email</th><th>Loyalty</th><th>Tier</th><th>Status</th><th></th></tr></thead><tbody id="cust-body"></tbody></table></div>`;
+      <div class="card"><table class="data-table"><thead><tr><th>Name</th><th>Email</th><th>Loyalty</th><th>Tier</th><th>Status</th><th></th></tr></thead><tbody id="cust-body"></tbody></table></div>
+      <div id="cust-error"></div>`;
 
-    const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'customer')));
-    customers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    render();
+    onSnapshot(query(collection(db, 'users'), where('role', '==', 'customer')), (snap) => {
+      customers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      render();
+    }, (err) => {
+      console.error(err);
+      document.getElementById('live-badge').outerHTML = `<span class="badge badge-danger">● Offline</span>`;
+      document.getElementById('cust-error').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div>Couldn't load customers (${err.code || err.message}).</div>`;
+    });
     document.getElementById('cust-search').addEventListener('input', debounce(render, 200));
   });
 
@@ -56,9 +65,13 @@
       const next = c.status === 'suspended' ? 'active' : 'suspended';
       const ok = await confirmDialog({ title: `${next === 'suspended' ? 'Suspend' : 'Reinstate'} this customer?`, danger: next === 'suspended' });
       if (!ok) return;
-      await updateDoc(doc(db, 'users', c.id), { status: next });
-      c.status = next; render();
-      showToast(`Customer ${next}`, 'success');
+      try {
+        await updateDoc(doc(db, 'users', c.id), { status: next });
+        showToast(`Customer ${next}`, 'success');
+      } catch (err) {
+        console.error(err);
+        showToast('Could not update customer: ' + (err.code || err.message), 'error');
+      }
     }));
     body.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', async () => {
       const c = customers.find(x => x.id === b.dataset.view);
