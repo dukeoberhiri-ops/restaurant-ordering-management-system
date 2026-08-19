@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Account — Ember & Salt</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/tokens.css">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/components.css">
+<style>
+  .acct-layout { display: grid; grid-template-columns: 220px 1fr; gap: var(--sp-8); align-items: start; }
+  @media (max-width: 760px) { .acct-layout { grid-template-columns: 1fr; } }
+  .acct-nav a { display: block; padding: var(--sp-3) var(--sp-4); border-radius: var(--radius-md); font-weight: 600; margin-bottom: var(--sp-1); }
+  .acct-nav a.active, .acct-nav a:hover { background: var(--color-bg-sunken); color: var(--color-ember); }
+  .tier-card { background: linear-gradient(135deg, var(--color-char), #2E271F); color: #F7F3EC; border-radius: var(--radius-lg); padding: var(--sp-6); margin-bottom: var(--sp-6); }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .fav-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: var(--sp-4); }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container flex items-center justify-between" style="width:100%">
+    <a href="../index.html" class="logo">Ember<span class="accent">&</span>Salt</a>
+    <nav class="nav-links"><a href="menu.html">Menu</a><a href="reservations.html">Reservations</a></nav>
+    <div class="nav-cta">
+      <button class="theme-toggle" data-theme-toggle>🌙</button>
+      <button class="btn btn-ghost btn-sm" id="logout-btn">Sign out</button>
+    </div>
+  </div>
+</header>
+
+<main class="section">
+  <div class="container acct-layout">
+    <nav class="acct-nav">
+      <a href="#profile" data-tab="profile" class="active">Profile</a>
+      <a href="#security" data-tab="security">Password</a>
+      <a href="#favorites" data-tab="favorites">Favorites</a>
+      <a href="#loyalty" data-tab="loyalty">Loyalty</a>
+      <a href="orders.html">Order History</a>
+      <a href="reservations.html">Reservations</a>
+    </nav>
+
+    <div>
+      <div class="tier-card">
+        <div class="flex justify-between items-center">
+          <div>
+            <div class="eyebrow" style="color:var(--color-ember-glow)">Loyalty tier</div>
+            <h2 class="font-display" style="font-size:var(--text-2xl);margin-top:var(--sp-2)" id="tier-name">Bronze</h2>
+          </div>
+          <div class="text-center">
+            <div class="mono" style="font-size:var(--text-3xl)" id="points-total">0</div>
+            <div style="font-size:var(--text-xs);opacity:0.7">points</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card panel active" id="panel-profile">
+        <h3 class="font-display" style="font-size:var(--text-xl);margin-bottom:var(--sp-5)">Profile</h3>
+        <form id="profile-form">
+          <div class="field"><label for="p-name">Full name</label><input class="input" id="p-name" required></div>
+          <div class="field"><label for="p-email">Email</label><input class="input" id="p-email" disabled></div>
+          <div class="field"><label for="p-phone">Phone</label><input class="input" id="p-phone"></div>
+          <button class="btn btn-primary" type="submit">Save changes</button>
+        </form>
+      </div>
+
+      <div class="card panel" id="panel-security">
+        <h3 class="font-display" style="font-size:var(--text-xl);margin-bottom:var(--sp-5)">Change password</h3>
+        <form id="password-form">
+          <div class="field"><label for="cur-pass">Current password</label><input class="input" type="password" id="cur-pass" required></div>
+          <div class="field"><label for="new-pass">New password</label><input class="input" type="password" id="new-pass" required><span class="hint">At least 8 characters.</span></div>
+          <button class="btn btn-primary" type="submit">Update password</button>
+        </form>
+      </div>
+
+      <div class="card panel" id="panel-favorites">
+        <h3 class="font-display" style="font-size:var(--text-xl);margin-bottom:var(--sp-5)">Favorites</h3>
+        <div id="favorites-list"><div class="empty-state"><div class="icon">🤍</div>You haven't saved any favorites yet.</div></div>
+      </div>
+
+      <div class="card panel" id="panel-loyalty">
+        <h3 class="font-display" style="font-size:var(--text-xl);margin-bottom:var(--sp-5)">Rewards</h3>
+        <p class="text-muted" style="margin-bottom:var(--sp-4)">Earn 1 point per $1 spent. Redeem points below for vouchers.</p>
+        <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:var(--sp-4)">
+          <div class="card"><strong>100 pts</strong><p class="text-muted" style="font-size:var(--text-sm);margin:var(--sp-2) 0">$5 off your order</p><button class="btn btn-outline btn-sm btn-block" data-redeem="100">Redeem</button></div>
+          <div class="card"><strong>250 pts</strong><p class="text-muted" style="font-size:var(--text-sm);margin:var(--sp-2) 0">$15 off your order</p><button class="btn btn-outline btn-sm btn-block" data-redeem="250">Redeem</button></div>
+          <div class="card"><strong>500 pts</strong><p class="text-muted" style="font-size:var(--text-sm);margin:var(--sp-2) 0">Free dessert + drink</p><button class="btn btn-outline btn-sm btn-block" data-redeem="500">Redeem</button></div>
+        </div>
+        <div class="char-divider"></div>
+        <p class="text-muted" style="font-size:var(--text-sm)">Tiers: <strong>Bronze</strong> 0–199 · <strong>Silver</strong> 200–499 · <strong>Gold</strong> 500–999 · <strong>VIP</strong> 1000+</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script type="module">
+  import { initTheme, showToast, escapeHtml } from '../js/modules/ui.js';
+  import { requireAuth, logoutUser } from '../js/modules/auth.js';
+  import { auth, db, doc, updateDoc, getDoc, EmailAuthProvider, reauthenticateWithCredential, updatePassword, increment } from '../js/firebase/config.js';
+  import { fetchMeals } from '../js/modules/menu-data.js';
+  initTheme();
+
+  document.querySelectorAll('.acct-nav a[data-tab]').forEach(a => a.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.querySelectorAll('.acct-nav a[data-tab]').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    a.classList.add('active');
+    document.getElementById('panel-' + a.dataset.tab).classList.add('active');
+  }));
+
+  document.getElementById('logout-btn').addEventListener('click', async () => { await logoutUser(); window.location.href = '../index.html'; });
+
+  let currentUser, currentProfile;
+  requireAuth().then(({ user, profile }) => {
+    currentUser = user; currentProfile = profile;
+    document.getElementById('p-name').value = profile?.name || '';
+    document.getElementById('p-email').value = user.email;
+    document.getElementById('p-phone').value = profile?.phone || '';
+    document.getElementById('points-total').textContent = profile?.loyaltyPoints || 0;
+    document.getElementById('tier-name').textContent = tierFor(profile?.loyaltyPoints || 0);
+    loadFavorites(profile?.favorites || []);
+  });
+
+  function tierFor(pts) { if (pts >= 1000) return 'VIP'; if (pts >= 500) return 'Gold'; if (pts >= 200) return 'Silver'; return 'Bronze'; }
+
+  document.getElementById('profile-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await updateDoc(doc(db, 'users', currentUser.uid), { name: document.getElementById('p-name').value.trim(), phone: document.getElementById('p-phone').value.trim() });
+      showToast('Profile updated', 'success');
+    } catch (err) { showToast('Could not save changes', 'error'); }
+  });
+
+  document.getElementById('password-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const cur = document.getElementById('cur-pass').value, next = document.getElementById('new-pass').value;
+    if (next.length < 8) { showToast('New password must be at least 8 characters', 'error'); return; }
+    try {
+      const cred = EmailAuthProvider.credential(currentUser.email, cur);
+      await reauthenticateWithCredential(currentUser, cred);
+      await updatePassword(currentUser, next);
+      showToast('Password updated', 'success');
+      e.target.reset();
+    } catch (err) { showToast(err.code?.includes('wrong-password') ? 'Current password is incorrect' : 'Could not update password', 'error'); }
+  });
+
+  async function loadFavorites(ids) {
+    const wrap = document.getElementById('favorites-list');
+    if (!ids.length) return;
+    wrap.innerHTML = `<div class="skeleton" style="height:120px"></div>`;
+    try {
+      const all = await fetchMeals({ onlyAvailable: false });
+      const favs = all.filter(m => ids.includes(m.id));
+      wrap.innerHTML = favs.length ? `<div class="fav-grid">${favs.map(m => `
+        <div class="card flex justify-between items-center">
+          <div><strong>${escapeHtml(m.name)}</strong><div class="text-muted mono" style="font-size:var(--text-sm)">$${(m.price||0).toFixed(2)}</div></div>
+          <a href="menu.html" class="btn btn-outline btn-sm">Order</a>
+        </div>`).join('')}</div>` : `<div class="empty-state"><div class="icon">🤍</div>You haven't saved any favorites yet.</div>`;
+    } catch { wrap.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div>Couldn't load favorites.</div>`; }
+  }
+
+  document.querySelectorAll('[data-redeem]').forEach(btn => btn.addEventListener('click', async () => {
+    const cost = parseInt(btn.dataset.redeem);
+    const pts = currentProfile?.loyaltyPoints || 0;
+    if (pts < cost) { showToast('Not enough points yet', 'error'); return; }
+    await updateDoc(doc(db, 'users', currentUser.uid), { loyaltyPoints: increment(-cost) });
+    currentProfile.loyaltyPoints -= cost;
+    document.getElementById('points-total').textContent = currentProfile.loyaltyPoints;
+    document.getElementById('tier-name').textContent = tierFor(currentProfile.loyaltyPoints);
+    showToast('Reward redeemed! Mention it at checkout or to your server.', 'success');
+  }));
+</script>
+</body>
+</html>

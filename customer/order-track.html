@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Track Order — Ember & Salt</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/tokens.css">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/components.css">
+<style>
+  .track-steps { display: flex; flex-direction: column; gap: 0; margin: var(--sp-8) 0; }
+  .track-step { display: flex; gap: var(--sp-4); position: relative; padding-bottom: var(--sp-8); }
+  .track-step:last-child { padding-bottom: 0; }
+  .track-dot { width: 32px; height: 32px; border-radius: 50%; background: var(--color-bg-sunken); border: 2px solid var(--color-line-strong); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; z-index: 1; transition: all var(--dur-med); }
+  .track-step.done .track-dot { background: var(--color-success); border-color: var(--color-success); color: #fff; }
+  .track-step.current .track-dot { background: var(--color-ember); border-color: var(--color-ember); color: #fff; animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(193,80,46,0.4); } 50% { box-shadow: 0 0 0 8px rgba(193,80,46,0); } }
+  .track-step::before { content:''; position: absolute; left: 15px; top: 32px; bottom: 0; width: 2px; background: var(--color-line-strong); }
+  .track-step:last-child::before { display: none; }
+  .track-step.done::before { background: var(--color-success); }
+  .track-label { font-weight: 700; }
+  .track-step.done .track-label, .track-step.current .track-label { color: var(--color-char); }
+  .track-step:not(.done):not(.current) .track-label { color: var(--color-ink-muted); }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container flex items-center justify-between" style="width:100%">
+    <a href="../index.html" class="logo">Ember<span class="accent">&</span>Salt</a>
+    <nav class="nav-links"><a href="menu.html">Menu</a><a href="orders.html">My Orders</a></nav>
+    <div class="nav-cta"><button class="theme-toggle" data-theme-toggle>🌙</button></div>
+  </div>
+</header>
+
+<main class="section">
+  <div class="container" style="max-width:640px">
+    <div id="order-content">
+      <div class="skeleton" style="height:400px"></div>
+    </div>
+  </div>
+</main>
+
+<script type="module">
+  import { initTheme, formatCurrency, formatDateTime, escapeHtml } from '../js/modules/ui.js';
+  import { db, doc, onSnapshot } from '../js/firebase/config.js';
+  initTheme();
+
+  const params = new URLSearchParams(window.location.search);
+  const orderId = params.get('id');
+  const STEPS = [
+    { key: 'pending', label: 'Order Received', icon: '📥' },
+    { key: 'accepted', label: 'Accepted', icon: '✅' },
+    { key: 'preparing', label: 'Preparing', icon: '👨‍🍳' },
+    { key: 'ready', label: 'Ready', icon: '🍽️' },
+    { key: 'out_for_delivery', label: 'Out for Delivery', icon: '🚗' },
+    { key: 'delivered', label: 'Delivered', icon: '🎉' }
+  ];
+
+  if (!orderId) {
+    document.getElementById('order-content').innerHTML = `<div class="empty-state"><div class="icon">📦</div>No order specified.</div>`;
+  } else {
+    onSnapshot(doc(db, 'orders', orderId), (snap) => {
+      if (!snap.exists()) { document.getElementById('order-content').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div>Order not found.</div>`; return; }
+      render({ id: snap.id, ...snap.data() });
+    }, (err) => {
+      console.error(err);
+      document.getElementById('order-content').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div>Couldn't load this order.</div>`;
+    });
+  }
+
+  function render(order) {
+    const isDineIn = order.orderType !== 'delivery';
+    const steps = isDineIn ? STEPS.filter(s => s.key !== 'out_for_delivery') : STEPS;
+    const cancelled = order.status === 'cancelled';
+    const currentIdx = steps.findIndex(s => s.key === order.status);
+
+    document.getElementById('order-content').innerHTML = `
+      <div class="card">
+        <div class="flex justify-between items-center" style="margin-bottom:var(--sp-2)">
+          <span class="eyebrow">Order #${order.id.slice(0,8).toUpperCase()}</span>
+          <span class="badge ${cancelled ? 'badge-danger' : 'badge-ember'}">${cancelled ? 'Cancelled' : (order.orderType || '').replace('_',' ')}</span>
+        </div>
+        <h1 class="font-display" style="font-size:var(--text-2xl);margin-bottom:var(--sp-1)">Tracking your order</h1>
+        <p class="text-muted" style="margin-bottom:var(--sp-4)">Placed ${order.createdAt ? formatDateTime(order.createdAt) : 'just now'}</p>
+
+        ${cancelled ? `<div class="empty-state"><div class="icon">🚫</div>This order was cancelled.</div>` : `
+        <div class="track-steps">
+          ${steps.map((s, i) => `
+            <div class="track-step ${i < currentIdx ? 'done' : ''} ${i === currentIdx ? 'current' : ''}">
+              <div class="track-dot">${i < currentIdx ? '✓' : s.icon}</div>
+              <div><div class="track-label">${s.label}</div></div>
+            </div>`).join('')}
+        </div>`}
+
+        <div class="char-divider"></div>
+        <h4 style="margin-bottom:var(--sp-3)">Items</h4>
+        ${(order.items || []).map(i => `
+          <div class="flex justify-between" style="padding:var(--sp-2) 0;font-size:var(--text-sm)">
+            <span>${i.qty} × ${escapeHtml(i.name)}</span><span>${formatCurrency(i.qty * i.price)}</span>
+          </div>`).join('')}
+        <div class="char-divider"></div>
+        <div class="flex justify-between" style="font-weight:700;font-size:var(--text-lg)">
+          <span>Total</span><span>${formatCurrency(order.total)}</span>
+        </div>
+        ${order.tableNumber ? `<p class="text-muted" style="margin-top:var(--sp-3)">Table ${escapeHtml(order.tableNumber)}</p>` : ''}
+        ${order.deliveryAddress ? `<p class="text-muted" style="margin-top:var(--sp-3)">Delivering to: ${escapeHtml(order.deliveryAddress)}</p>` : ''}
+      </div>`;
+  }
+</script>
+</body>
+</html>
