@@ -1,1 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign In — Ember & Salt</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/tokens.css">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/components.css">
+<style>
+  .auth-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--color-bg-sunken); padding: var(--sp-5); }
+  .auth-card { width: 100%; max-width: 420px; background: var(--color-bg-raised); border-radius: var(--radius-lg); padding: var(--sp-8); box-shadow: var(--shadow-md); }
+  .auth-logo { text-align: center; margin-bottom: var(--sp-6); }
+</style>
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <a href="../index.html" class="logo">Ember<span class="accent">&</span>Salt</a>
+      <p class="text-muted" style="margin-top:var(--sp-2)">Welcome back</p>
+    </div>
+    <form id="login-form" novalidate>
+      <div class="field" id="email-field">
+        <label for="email">Email</label>
+        <input class="input" type="email" id="email" required autocomplete="email">
+        <span class="error-text">Enter a valid email address.</span>
+      </div>
+      <div class="field" id="password-field">
+        <label for="password">Password</label>
+        <input class="input" type="password" id="password" required autocomplete="current-password">
+        <span class="error-text">Password is required.</span>
+      </div>
+      <div class="flex justify-between items-center" style="margin-bottom:var(--sp-5)">
+        <label class="flex items-center gap-2" style="font-size:var(--text-sm)"><input type="checkbox" id="remember"> Remember me</label>
+        <a href="#" id="forgot-link" style="font-size:var(--text-sm);color:var(--color-ember);font-weight:600">Forgot password?</a>
+      </div>
+      <button class="btn btn-primary btn-block btn-lg" type="submit" id="submit-btn">Sign In</button>
+    </form>
+    <p class="text-center text-muted" style="margin-top:var(--sp-6);font-size:var(--text-sm)">
+      New here? <a href="register.html" style="color:var(--color-ember);font-weight:600">Create an account</a>
+    </p>
+    <p class="text-center" style="margin-top:var(--sp-3)"><a href="../admin/login.html" class="text-muted" style="font-size:var(--text-xs)">Staff / Admin login →</a></p>
+  </div>
+</div>
 
+<script type="module">
+  import { initTheme, showToast, openModal } from '../js/modules/ui.js';
+  import { loginUser, resetPassword, watchAuth } from '../js/modules/auth.js';
+  initTheme();
+
+  // If already signed in, bounce to account
+  watchAuth((user, profile) => {
+    if (user && profile) window.location.href = profile.role === 'admin' ? '../admin/dashboard.html' : 'account.html';
+  });
+
+  const form = document.getElementById('login-form');
+  const submitBtn = document.getElementById('submit-btn');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    let valid = true;
+    document.getElementById('email-field').classList.toggle('has-error', !email.includes('@'));
+    if (!email.includes('@')) valid = false;
+    document.getElementById('password-field').classList.toggle('has-error', !password);
+    if (!password) valid = false;
+    if (!valid) return;
+
+    submitBtn.disabled = true; submitBtn.textContent = 'Signing in…';
+    try {
+      const { profile } = await loginUser(email, password);
+      showToast('Welcome back!', 'success');
+      setTimeout(() => { window.location.href = profile?.role === 'admin' ? '../admin/dashboard.html' : 'account.html'; }, 400);
+    } catch (err) {
+      showToast(friendlyError(err), 'error');
+      submitBtn.disabled = false; submitBtn.textContent = 'Sign In';
+    }
+  });
+
+  document.getElementById('forgot-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    const { close } = openModal(`
+      <div class="modal-header"><h3 class="font-display">Reset password</h3><button class="modal-close" data-close-modal>&times;</button></div>
+      <p class="text-muted" style="margin-bottom:var(--sp-4)">Enter your email and we'll send a reset link.</p>
+      <div class="field"><input class="input" type="email" id="reset-email" placeholder="you@example.com"></div>
+      <button class="btn btn-primary btn-block" id="reset-send">Send reset link</button>
+    `);
+    document.getElementById('reset-send').addEventListener('click', async () => {
+      const email = document.getElementById('reset-email').value.trim();
+      if (!email.includes('@')) { showToast('Enter a valid email', 'error'); return; }
+      try { await resetPassword(email); showToast('Reset email sent — check your inbox', 'success'); close(); }
+      catch (err) { showToast(friendlyError(err), 'error'); }
+    });
+  });
+
+  function friendlyError(err) {
+    const msg = err.code || err.message || '';
+    if (msg.includes('user-not-found') || msg.includes('wrong-password') || msg.includes('invalid-credential')) return 'Incorrect email or password.';
+    if (msg.includes('too-many-requests')) return 'Too many attempts. Try again later.';
+    return err.message || 'Something went wrong.';
+  }
+</script>
+</body>
+</html>
