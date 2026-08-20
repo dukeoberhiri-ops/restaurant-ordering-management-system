@@ -93,6 +93,15 @@ async function ensureBothDemoAccountsAndSeed() {
 }
 
 export async function loginAsDemoAdmin() {
+  // Fast path: true for every click after the very first. A single sign-in
+  // — no switching through the Demo User account, no reseed check — avoids
+  // the multi-step churn that otherwise risks overlapping auth events.
+  const fast = await tryFastLogin(DEMO_ADMIN_EMAIL, { name: 'Alex Rivera', role: 'admin', status: 'active' });
+  if (fast) {
+    sessionStorage.setItem('demoJustLoggedIn', 'admin');
+    return fast;
+  }
+  // Slow path: first-ever use, account doesn't exist yet.
   const { adminUser } = await ensureBothDemoAccountsAndSeed();
   await waitForConfirmedAuth(adminUser.uid);
   sessionStorage.setItem('demoJustLoggedIn', 'admin');
@@ -100,12 +109,44 @@ export async function loginAsDemoAdmin() {
 }
 
 export async function loginAsDemoUser() {
+  const fast = await tryFastLogin(DEMO_USER_EMAIL, {
+    name: 'Jordan Ellis', phone: '(555) 019-4471', role: 'customer',
+    loyaltyPoints: 0, favorites: [], status: 'active'
+  });
+  if (fast) {
+    sessionStorage.setItem('demoJustLoggedIn', 'user');
+    return fast;
+  }
+  // Slow path: first-ever use — provisions both accounts, since seeding
+  // needs the Demo Admin's permissions regardless of which button was clicked.
   await ensureBothDemoAccountsAndSeed();
   await signOut(auth);
   const cred = await signInWithEmailAndPassword(auth, DEMO_USER_EMAIL, DEMO_PASSWORD);
   await waitForConfirmedAuth(cred.user.uid);
   sessionStorage.setItem('demoJustLoggedIn', 'user');
   return cred.user;
+}
+
+/** One sign-in call, nothing else. Returns null (never throws) if the
+ *  account doesn't exist yet, so the caller can fall back to full
+ *  provisioning. Self-heals a missing profile doc without any extra auth
+ *  churn, so an account that exists but never finished setup still works. */
+async function tryFastLogin(email, profileFields) {
+  try {
+    const cred = await signInWithEmailAndPassword(auth, email, DEMO_PASSWORD);
+    await waitForConfirmedAuth(cred.user.uid);
+    const profileSnap = await getDoc(doc(db, 'users', cred.user.uid));
+    if (!profileSnap.exists()) {
+      await setDoc(doc(db, 'users', cred.user.uid), {
+        email, ...profileFields, isDemoAccount: true, createdAt: serverTimestamp()
+      });
+    }
+    return cred.user;
+  } catch (err) {
+    const notFound = ['auth/user-not-found', 'auth/invalid-credential', 'auth/invalid-login-credentials'].includes(err.code);
+    if (!notFound) throw err;
+    return null;
+  }
 }
 
 /**

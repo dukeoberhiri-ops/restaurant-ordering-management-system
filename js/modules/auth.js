@@ -44,17 +44,23 @@ export async function resetPassword(email) { return sendPasswordResetEmail(auth,
 
 /** Redirects to login if not authenticated. Redirects to /customer/account.html
  *  if authenticated but requireRole('admin') fails. Call at top of protected pages.
- *  Unsubscribes from the auth listener after the first decision — otherwise a
- *  later auth event (token refresh, or the settling effects of rapid demo
- *  sign-in/sign-out) could redirect a page away after it already loaded
- *  successfully, which is exactly the "loads then jumps back" symptom this
- *  was causing. */
+ *  Uses a synchronous "already handled" guard, not just unsubscribe() — the
+ *  underlying listener's callback is async (it awaits a Firestore read), so
+ *  if Firebase fires two auth-changed events close together (which happens
+ *  after the demo flow's rapid sign-in/sign-out cycles settle), the second
+ *  firing can start running before the first one's await finishes and reaches
+ *  unsubscribe(). Both would otherwise complete and could redirect twice —
+ *  once correctly, once on stale state, undoing the first. The flag below
+ *  blocks any firing after the first one, regardless of timing. */
 export function requireAuth({ role = null, redirectTo = '/customer/login.html' } = {}) {
   return new Promise((resolve) => {
+    let handled = false;
     const unsubscribe = watchAuth((user, profile) => {
-      if (!user) { unsubscribe(); window.location.href = redirectTo; return; }
-      if (role && profile?.role !== role) { unsubscribe(); window.location.href = '/index.html'; return; }
+      if (handled) return;
+      handled = true;
       unsubscribe();
+      if (!user) { window.location.href = redirectTo; return; }
+      if (role && profile?.role !== role) { window.location.href = '/index.html'; return; }
       resolve({ user, profile });
     });
   });
