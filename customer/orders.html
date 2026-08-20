@@ -18,7 +18,7 @@
   <div class="container flex items-center justify-between" style="width:100%">
     <a href="../index.html" class="logo">Ember<span class="accent">&</span>Salt</a>
     <nav class="nav-links"><a href="menu.html">Menu</a><a href="account.html">Account</a></nav>
-    <div class="nav-cta"><button class="theme-toggle" data-theme-toggle>🌙</button></div>
+    <div class="nav-cta"><button class="theme-toggle" data-theme-toggle>🌙</button><button class="mobile-menu-btn icon-btn" aria-label="Menu">☰</button></div>
   </div>
 </header>
 
@@ -30,10 +30,11 @@
 </main>
 
 <script type="module">
-  import { initTheme, formatCurrency, formatDateTime, openModal, escapeHtml } from '../js/modules/ui.js';
+  import { initTheme, formatCurrency, formatDateTime, openModal, escapeHtml, initMobileNav } from '../js/modules/ui.js';
   import { requireAuth } from '../js/modules/auth.js';
   import { db, collection, query, where, onSnapshot } from '../js/firebase/config.js';
   initTheme();
+  initMobileNav();
 
   const STATUS_BADGE = { pending:'badge-warning', accepted:'badge-gold', preparing:'badge-gold', ready:'badge-olive', out_for_delivery:'badge-olive', delivered:'badge-success', cancelled:'badge-danger' };
   let currentOrders = [];

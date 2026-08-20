@@ -24,6 +24,7 @@
     <div class="nav-cta">
       <button class="theme-toggle" data-theme-toggle>🌙</button>
       <a href="login.html" id="account-link" class="icon-btn">👤</a>
+      <button class="mobile-menu-btn icon-btn" aria-label="Menu">☰</button>
     </div>
   </div>
 </header>
@@ -71,11 +72,12 @@
 </main>
 
 <script type="module">
-  import { initTheme, showToast, formatDate, confirmDialog, escapeHtml } from '../js/modules/ui.js';
+  import { initTheme, showToast, formatDate, confirmDialog, escapeHtml, initMobileNav } from '../js/modules/ui.js';
   import { watchAuth } from '../js/modules/auth.js';
   import { db, collection, addDoc, query, where, onSnapshot, updateDoc, doc, orderBy, serverTimestamp, runTransaction, getDocs, increment } from '../js/firebase/config.js';
 
   initTheme();
+  initMobileNav();
 
   const TIMES = ['5:00 PM','5:30 PM','6:00 PM','6:30 PM','7:00 PM','7:30 PM','8:00 PM','8:30 PM','9:00 PM','9:30 PM'];
   const timeSelect = document.getElementById('res-time');

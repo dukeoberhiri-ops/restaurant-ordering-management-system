@@ -27,6 +27,7 @@
     <div class="nav-cta">
       <button class="theme-toggle" data-theme-toggle>🌙</button>
       <button class="btn btn-ghost btn-sm" id="logout-btn">Sign out</button>
+      <button class="mobile-menu-btn icon-btn" aria-label="Menu">☰</button>
     </div>
   </div>
 </header>
@@ -96,12 +97,13 @@
 </main>
 
 <script type="module">
-  import { initTheme, showToast, escapeHtml } from '../js/modules/ui.js';
+  import { initTheme, showToast, escapeHtml, initMobileNav } from '../js/modules/ui.js';
   import { requireAuth, logoutUser } from '../js/modules/auth.js';
   import { auth, db, doc, updateDoc, getDoc, EmailAuthProvider, reauthenticateWithCredential, updatePassword, increment } from '../js/firebase/config.js';
   import { fetchMeals } from '../js/modules/menu-data.js';
   import { maybeShowDemoWelcomeBanner } from '../js/modules/demo-auth.js';
   initTheme();
+  initMobileNav();
 
   document.querySelectorAll('.acct-nav a[data-tab]').forEach(a => a.addEventListener('click', (e) => {
     e.preventDefault();

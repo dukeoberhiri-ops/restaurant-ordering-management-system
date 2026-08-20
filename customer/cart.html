@@ -31,6 +31,7 @@
     <div class="nav-cta">
       <button class="theme-toggle" data-theme-toggle>🌙</button>
       <a href="login.html" id="account-link" class="icon-btn">👤</a>
+      <button class="mobile-menu-btn icon-btn" aria-label="Menu">☰</button>
     </div>
   </div>
 </header>
@@ -98,12 +99,13 @@
 </main>
 
 <script type="module">
-  import { initTheme, showToast, formatCurrency, confirmDialog } from '../js/modules/ui.js';
+  import { initTheme, showToast, formatCurrency, confirmDialog, initMobileNav } from '../js/modules/ui.js';
   import { getCart, updateQty, removeItem, cartTotals, setOrderType, setPromo, clearCart } from '../js/modules/cart.js';
   import { watchAuth } from '../js/modules/auth.js';
   import { db, collection, addDoc, doc, getDoc, query, where, getDocs, serverTimestamp, updateDoc, increment } from '../js/firebase/config.js';
 
   initTheme();
+  initMobileNav();
   let currentUser = null, currentProfile = null;
   watchAuth((user, profile) => {
     currentUser = user; currentProfile = profile;
