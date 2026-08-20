@@ -110,5 +110,19 @@ export function initMobileNav() {
   const btn = document.querySelector('.mobile-menu-btn');
   const links = document.querySelector('.nav-links');
   if (!btn || !links) return;
-  btn.addEventListener('click', () => links.classList.toggle('mobile-open'));
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = links.classList.toggle('mobile-open');
+    btn.textContent = open ? '✕' : '☰';
+  });
+  links.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
+    links.classList.remove('mobile-open');
+    btn.textContent = '☰';
+  }));
+  document.addEventListener('click', (e) => {
+    if (!links.classList.contains('mobile-open')) return;
+    if (e.target.closest('.nav-links') || e.target.closest('.mobile-menu-btn')) return;
+    links.classList.remove('mobile-open');
+    btn.textContent = '☰';
+  });
 }
