@@ -102,7 +102,27 @@ textarea.input { resize: vertical; min-height: 90px; }
 }
 .mobile-menu-btn { display: none; }
 @media (max-width: 900px) {
-  .nav-links { display: none; }
+  .nav-links {
+    display: none;
+    position: absolute;
+    top: var(--header-h);
+    left: 0; right: 0;
+    flex-direction: column;
+    gap: 0;
+    background: var(--color-bg-raised);
+    border-bottom: 1px solid var(--color-line);
+    box-shadow: var(--shadow-md);
+    padding: var(--sp-2) var(--sp-4);
+    z-index: 90;
+  }
+  .nav-links.mobile-open { display: flex; }
+  .nav-links a {
+    padding: var(--sp-4) var(--sp-2);
+    border-bottom: 1px solid var(--color-line);
+    opacity: 1;
+    font-size: var(--text-base);
+  }
+  .nav-links a:last-child { border-bottom: none; }
   .mobile-menu-btn { display: flex; }
 }
 
