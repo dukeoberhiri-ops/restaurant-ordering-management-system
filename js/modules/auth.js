@@ -43,12 +43,18 @@ export async function logoutUser() { return signOut(auth); }
 export async function resetPassword(email) { return sendPasswordResetEmail(auth, email); }
 
 /** Redirects to login if not authenticated. Redirects to /customer/account.html
- *  if authenticated but requireRole('admin') fails. Call at top of protected pages. */
+ *  if authenticated but requireRole('admin') fails. Call at top of protected pages.
+ *  Unsubscribes from the auth listener after the first decision — otherwise a
+ *  later auth event (token refresh, or the settling effects of rapid demo
+ *  sign-in/sign-out) could redirect a page away after it already loaded
+ *  successfully, which is exactly the "loads then jumps back" symptom this
+ *  was causing. */
 export function requireAuth({ role = null, redirectTo = '/customer/login.html' } = {}) {
   return new Promise((resolve) => {
-    watchAuth((user, profile) => {
-      if (!user) { window.location.href = redirectTo; return; }
-      if (role && profile?.role !== role) { window.location.href = '/index.html'; return; }
+    const unsubscribe = watchAuth((user, profile) => {
+      if (!user) { unsubscribe(); window.location.href = redirectTo; return; }
+      if (role && profile?.role !== role) { unsubscribe(); window.location.href = '/index.html'; return; }
+      unsubscribe();
       resolve({ user, profile });
     });
   });
