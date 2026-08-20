@@ -174,7 +174,7 @@
       <div class="modal-header"><h3 class="font-display">${escapeHtml(m.name)}</h3><button class="modal-close" data-close-modal>&times;</button></div>
       <img class="meal-photo" src="${m.imageUrl || ''}" alt="${escapeHtml(m.name)}" style="border-radius:var(--radius-md);margin-bottom:var(--sp-4);height:220px">
       <p style="margin-bottom:var(--sp-4)">${escapeHtml(m.description || '')}</p>
-      <div class="grid" style="grid-template-columns:1fr 1fr;gap:var(--sp-4);margin-bottom:var(--sp-4)">
+      <div class="grid-2" style="gap:var(--sp-4);margin-bottom:var(--sp-4)">
         <div>
           <h4 style="font-size:var(--text-sm);text-transform:uppercase;letter-spacing:.06em;color:var(--color-ink-muted);margin-bottom:var(--sp-2)">Ingredients</h4>
           <p style="font-size:var(--text-sm)">${(m.ingredients || []).map(escapeHtml).join(', ') || '—'}</p>

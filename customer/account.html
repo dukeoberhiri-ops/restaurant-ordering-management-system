@@ -16,6 +16,7 @@
   .panel { display: none; }
   .panel.active { display: block; }
   .fav-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: var(--sp-4); }
+  @media (max-width: 480px) { .fav-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -85,7 +86,7 @@
       <div class="card panel" id="panel-loyalty">
         <h3 class="font-display" style="font-size:var(--text-xl);margin-bottom:var(--sp-5)">Rewards</h3>
         <p class="text-muted" style="margin-bottom:var(--sp-4)">Earn 1 point per $1 spent. Redeem points below for vouchers.</p>
-        <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:var(--sp-4)">
+        <div class="grid-3" style="gap:var(--sp-4)">
           <div class="card"><strong>100 pts</strong><p class="text-muted" style="font-size:var(--text-sm);margin:var(--sp-2) 0">$5 off your order</p><button class="btn btn-outline btn-sm btn-block" data-redeem="100">Redeem</button></div>
           <div class="card"><strong>250 pts</strong><p class="text-muted" style="font-size:var(--text-sm);margin:var(--sp-2) 0">$15 off your order</p><button class="btn btn-outline btn-sm btn-block" data-redeem="250">Redeem</button></div>
           <div class="card"><strong>500 pts</strong><p class="text-muted" style="font-size:var(--text-sm);margin:var(--sp-2) 0">Free dessert + drink</p><button class="btn btn-outline btn-sm btn-block" data-redeem="500">Redeem</button></div>
