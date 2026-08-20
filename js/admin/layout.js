@@ -10,6 +10,7 @@ const BASE_NAV = [
   { href: 'menu.html', icon: '🍽️', label: 'Menu' },
   { href: 'orders.html', icon: '🧾', label: 'Orders' },
   { href: 'reservations.html', icon: '📅', label: 'Reservations' },
+  { href: 'messages.html', icon: '💬', label: 'Messages' },
   { href: 'customers.html', icon: '👥', label: 'Customers' },
   { href: 'reports.html', icon: '📈', label: 'Reports' },
 ];
