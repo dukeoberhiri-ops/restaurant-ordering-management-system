@@ -14,7 +14,7 @@
 // admin account must never see these.
 // ==========================================================================
 import {
-  auth, db,
+  auth, db, onAuthStateChanged,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile,
   doc, getDoc, setDoc, deleteDoc, collection, addDoc, getDocs, query, where, limit,
   serverTimestamp, Timestamp
@@ -83,6 +83,7 @@ async function ensureBothDemoAccountsAndSeed() {
 
 export async function loginAsDemoAdmin() {
   const { adminUser } = await ensureBothDemoAccountsAndSeed();
+  await waitForConfirmedAuth(adminUser.uid);
   sessionStorage.setItem('demoJustLoggedIn', 'admin');
   return adminUser;
 }
@@ -91,8 +92,32 @@ export async function loginAsDemoUser() {
   await ensureBothDemoAccountsAndSeed();
   await signOut(auth);
   const cred = await signInWithEmailAndPassword(auth, DEMO_USER_EMAIL, DEMO_PASSWORD);
+  await waitForConfirmedAuth(cred.user.uid);
   sessionStorage.setItem('demoJustLoggedIn', 'user');
   return cred.user;
+}
+
+/**
+ * After several rapid sign-in/sign-out cycles (unavoidable while
+ * provisioning both demo accounts from a single browser session), the auth
+ * SDK's promise can resolve slightly before the session is fully persisted
+ * to storage. Navigating away immediately after that — which every caller
+ * of loginAsDemoAdmin/loginAsDemoUser does right away — can land on a page
+ * that reads a stale, empty auth state and bounces straight back to login.
+ * Waiting for one confirmed onAuthStateChanged firing for the expected uid
+ * closes that gap before we hand control back to the caller.
+ */
+function waitForConfirmedAuth(expectedUid, timeoutMs = 4000) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { unsubscribe(); resolve(); }, timeoutMs);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user && user.uid === expectedUid) {
+        clearTimeout(timer);
+        unsubscribe();
+        resolve();
+      }
+    });
+  });
 }
 
 // ---- Welcome banner (shown once per browser session after a demo login) ----
