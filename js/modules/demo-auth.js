@@ -20,9 +20,9 @@ import {
   serverTimestamp, Timestamp
 } from '../firebase/config.js';
 
-export const DEMO_ADMIN_EMAIL = 'demo-admin@emberandsalt.app';
-export const DEMO_USER_EMAIL = 'demo-user@emberandsalt.app';
-const DEMO_PASSWORD = 'EmberSaltDemo!2026';
+export const DEMO_ADMIN_EMAIL = 'admin@example.com';
+export const DEMO_USER_EMAIL = 'user@example.com';
+const DEMO_PASSWORD = 'Demo123!';
 
 export function isDemoEmail(email) {
   return email === DEMO_ADMIN_EMAIL || email === DEMO_USER_EMAIL;
@@ -91,15 +91,14 @@ export function maybeShowDemoWelcomeBanner(userEmail) {
   sessionStorage.setItem('demoBannerShown', 'true');
   sessionStorage.removeItem('demoJustLoggedIn');
 
-  const isAdmin = userEmail === DEMO_ADMIN_EMAIL;
   const banner = document.createElement('div');
-  banner.style.cssText = 'background:#1B1815;color:#F7F3EC;padding:14px 20px;' +
+  banner.style.cssText = 'background:#1B1815;color:#F7F3EC;padding:16px 20px;' +
     'display:flex;align-items:center;justify-content:space-between;gap:16px;' +
-    'font:14px/1.5 -apple-system,sans-serif;position:relative;z-index:400;flex-wrap:wrap';
+    'font:14px/1.6 -apple-system,sans-serif;position:relative;z-index:400;flex-wrap:wrap';
   banner.innerHTML = `
-    <span>🎭 <strong>Welcome to the demo!</strong> You're exploring as ${isAdmin ? 'the <strong>Demo Admin</strong>' : 'a <strong>Demo Guest</strong>'} —
-    feel free to click around. This account's data is shared with other visitors and may be reset at any time.</span>
-    <button style="background:#C1502E;color:#fff;border:none;padding:8px 14px;border-radius:999px;font-weight:700;font-size:13px;white-space:nowrap;cursor:pointer">Dismiss</button>`;
+    <span><strong>Welcome to the demo!</strong> Feel free to explore all features of the application using this demonstration account.
+    Any changes you make are for testing purposes only and may be reset at any time.</span>
+    <button style="background:#C1502E;color:#fff;border:none;padding:8px 14px;border-radius:999px;font-weight:700;font-size:13px;white-space:nowrap;cursor:pointer;flex-shrink:0">Dismiss</button>`;
   banner.querySelector('button').addEventListener('click', () => banner.remove());
   document.body.prepend(banner);
 }
@@ -231,6 +230,20 @@ export async function seedAllDemoData(demoUserUid, onProgress) {
   // Give the Demo User realistic loyalty points reflecting their seeded spend.
   await setDoc(doc(db, 'users', demoUserUid), { loyaltyPoints: Math.floor(totalSpend) }, { merge: true });
   log('Awarded loyalty points to Demo User');
+
+  const DEMO_MESSAGES = [
+    { message: 'Do you have anything on the menu that\'s dairy-free? Planning to bring a friend with an allergy this weekend.', adminReply: 'Great question! The Grilled Corn, Whole Grilled Branzino, and Charred Octopus are all dairy-free as listed. Happy to walk through the rest of the menu with you or your friend when you arrive — just flag it to your server.', status: 'replied' },
+    { message: 'Loved the ribeye last time — is it always dry-aged the same amount of days, or does that change seasonally?', adminReply: null, status: 'new' },
+  ];
+  for (const msg of DEMO_MESSAGES) {
+    await addDoc(collection(db, 'messages'), {
+      userId: demoUserUid, name: 'Jordan Ellis', email: DEMO_USER_EMAIL,
+      message: msg.message, status: msg.status, adminReply: msg.adminReply,
+      isDemo: true, createdAt: daysAgoTimestamp(randInt(0, 4)),
+      ...(msg.adminReply ? { repliedAt: daysAgoTimestamp(randInt(0, 3)) } : {})
+    });
+  }
+  log('Seeded demo messages');
 }
 
 /** Deletes every isDemo-tagged document across every collection this app
@@ -243,7 +256,7 @@ export async function resetDemoData(onProgress) {
   if (demoUserSnap.empty) throw new Error('Demo User account not found — log in as Demo User at least once first.');
   const demoUserUid = demoUserSnap.docs[0].id;
 
-  const collections = ['categories', 'meals', 'promoCodes', 'orders', 'reservations'];
+  const collections = ['categories', 'meals', 'promoCodes', 'orders', 'reservations', 'messages'];
   for (const col of collections) {
     const snap = await getDocs(query(collection(db, col), where('isDemo', '==', true)));
     for (const d of snap.docs) { await deleteDoc(doc(db, col, d.id)); }
