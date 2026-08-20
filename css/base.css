@@ -68,6 +68,14 @@ h1, h2, h3, h4, .font-display {
 @media (max-width: 768px) { .section { padding: var(--sp-8) 0; } }
 
 .grid { display: grid; gap: var(--sp-6); }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-4); }
+@media (max-width: 640px) {
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+}
+@media (min-width: 641px) and (max-width: 860px) {
+  .grid-3 { grid-template-columns: repeat(2, 1fr); }
+}
 .flex { display: flex; }
 .flex-col { display: flex; flex-direction: column; }
 .items-center { align-items: center; }
