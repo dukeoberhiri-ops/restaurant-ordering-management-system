@@ -39,6 +39,7 @@
       <a href="#security" data-tab="security">Password</a>
       <a href="#favorites" data-tab="favorites">Favorites</a>
       <a href="#loyalty" data-tab="loyalty">Loyalty</a>
+      <a href="#messages" data-tab="messages">Messages</a>
       <a href="orders.html">Order History</a>
       <a href="reservations.html">Reservations</a>
     </nav>
@@ -92,6 +93,12 @@
         <div class="char-divider"></div>
         <p class="text-muted" style="font-size:var(--text-sm)">Tiers: <strong>Bronze</strong> 0–199 · <strong>Silver</strong> 200–499 · <strong>Gold</strong> 500–999 · <strong>VIP</strong> 1000+</p>
       </div>
+
+      <div class="card panel" id="panel-messages">
+        <h3 class="font-display" style="font-size:var(--text-xl);margin-bottom:var(--sp-5)">Messages</h3>
+        <p class="text-muted" style="margin-bottom:var(--sp-4);font-size:var(--text-sm)">Sent us something from the contact form on the homepage? Replies from the team show up here live.</p>
+        <div id="messages-list"><div class="empty-state"><div class="icon">💬</div>No messages yet — use the contact form on the homepage to send one.</div></div>
+      </div>
     </div>
   </div>
 </main>
@@ -99,7 +106,7 @@
 <script type="module">
   import { initTheme, showToast, escapeHtml, initMobileNav } from '../js/modules/ui.js';
   import { requireAuth, logoutUser } from '../js/modules/auth.js';
-  import { auth, db, doc, updateDoc, getDoc, EmailAuthProvider, reauthenticateWithCredential, updatePassword, increment } from '../js/firebase/config.js';
+  import { auth, db, doc, updateDoc, getDoc, EmailAuthProvider, reauthenticateWithCredential, updatePassword, increment, collection, query, where, onSnapshot } from '../js/firebase/config.js';
   import { fetchMeals } from '../js/modules/menu-data.js';
   import { maybeShowDemoWelcomeBanner } from '../js/modules/demo-auth.js';
   initTheme();
@@ -125,7 +132,27 @@
     document.getElementById('points-total').textContent = profile?.loyaltyPoints || 0;
     document.getElementById('tier-name').textContent = tierFor(profile?.loyaltyPoints || 0);
     loadFavorites(profile?.favorites || []);
+    watchMyMessages(user.uid);
   });
+
+  function watchMyMessages(uid) {
+    const wrap = document.getElementById('messages-list');
+    onSnapshot(query(collection(db, 'messages'), where('userId', '==', uid)), (snap) => {
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      if (!list.length) { wrap.innerHTML = `<div class="empty-state"><div class="icon">💬</div>No messages yet — use the contact form on the homepage to send one.</div>`; return; }
+      wrap.innerHTML = list.map(m => `
+        <div class="card" style="margin-bottom:var(--sp-3)">
+          <div class="flex justify-between items-center" style="margin-bottom:var(--sp-2)">
+            <span class="badge ${m.status === 'replied' ? 'badge-success' : 'badge-muted'}">${m.status}</span>
+          </div>
+          <p style="margin-bottom:var(--sp-3);white-space:pre-wrap">${escapeHtml(m.message)}</p>
+          ${m.adminReply ? `<div style="background:var(--color-bg-sunken);border-radius:var(--radius-md);padding:var(--sp-3)"><div class="text-muted" style="font-size:var(--text-xs);margin-bottom:var(--sp-1)">Reply from Ember & Salt</div>${escapeHtml(m.adminReply)}</div>` : `<p class="text-muted" style="font-size:var(--text-sm)">Awaiting a reply…</p>`}
+        </div>`).join('');
+    }, (err) => {
+      console.error(err);
+      wrap.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div>Couldn't load messages (${err.code || err.message}).</div>`;
+    });
+  }
 
   function tierFor(pts) { if (pts >= 1000) return 'VIP'; if (pts >= 500) return 'Gold'; if (pts >= 200) return 'Silver'; return 'Bronze'; }
 
