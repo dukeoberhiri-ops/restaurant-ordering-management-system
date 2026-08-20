@@ -16,6 +16,7 @@
 import {
   auth, db, onAuthStateChanged,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile,
+  setPersistence, browserSessionPersistence,
   doc, getDoc, setDoc, deleteDoc, collection, addDoc, getDocs, query, where, limit,
   serverTimestamp, Timestamp
 } from '../firebase/config.js';
@@ -66,6 +67,16 @@ async function loginOrCreate(email, password, profileFields) {
  * the person clicked, so either entry point results in a fully working demo.
  */
 async function ensureBothDemoAccountsAndSeed() {
+  // Demo logins use per-TAB session storage instead of the browser-wide
+  // storage regular logins use. Firebase's default persistence is shared
+  // across every tab of the same browser on purpose (stay signed in
+  // everywhere) — but that means signing into Demo User in one tab would
+  // silently overwrite a Demo Admin session open in another tab of the
+  // same browser, kicking that tab back to login. Session persistence
+  // keeps each tab's demo login fully independent, so a client can run
+  // Admin in one tab and User in another, in the same browser, at once.
+  await setPersistence(auth, browserSessionPersistence);
+
   const userResult = await loginOrCreate(DEMO_USER_EMAIL, DEMO_PASSWORD, {
     name: 'Jordan Ellis', phone: '(555) 019-4471', role: 'customer',
     loyaltyPoints: 0, favorites: [], status: 'active'
