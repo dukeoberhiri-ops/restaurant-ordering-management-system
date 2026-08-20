@@ -26,7 +26,8 @@
   .hero h1 { font-size: clamp(2.6rem, 5.2vw, var(--text-6xl)); color: #FBF6EE; }
   .hero h1 em { font-style: normal; color: var(--color-ember-glow); }
   .hero-sub { font-size: var(--text-lg); color: rgba(247,243,236,0.72); max-width: 480px; margin: var(--sp-5) 0 var(--sp-6); }
-  .hero-stats { display: flex; gap: var(--sp-8); margin-top: var(--sp-8); font-family: var(--font-mono); }
+  .hero-stats { display: flex; gap: var(--sp-8); margin-top: var(--sp-8); font-family: var(--font-mono); flex-wrap: wrap; }
+  @media (max-width: 480px) { .hero-stats { gap: var(--sp-5); } }
   .hero-stats .n { font-family: var(--font-display); font-size: var(--text-3xl); color: var(--color-ember-glow); }
   .hero-stats .l { font-size: var(--text-xs); color: rgba(247,243,236,0.55); text-transform: uppercase; letter-spacing: 0.08em; }
   .hero-visual {
