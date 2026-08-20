@@ -246,9 +246,18 @@
       <h2 style="font-size:var(--text-3xl);margin:var(--sp-3) 0 var(--sp-5)">Find us</h2>
       <p style="margin-bottom:var(--sp-3)"><strong>Address</strong><br>412 Harbor Row, Coastal City</p>
       <p style="margin-bottom:var(--sp-3)"><strong>Hours</strong><br>Tue–Sun, 5:00 PM – 11:00 PM · Closed Mondays</p>
-      <p><strong>Contact</strong><br>(555) 018-2231 · hello@emberandsalt.com</p>
+      <p style="margin-bottom:var(--sp-5)"><strong>Contact</strong><br>(555) 018-2231 · hello@emberandsalt.com</p>
+      <div class="map-placeholder">Google Map embed placeholder — add your Maps embed code here</div>
     </div>
-    <div class="map-placeholder">Google Map embed placeholder — add your Maps embed code here</div>
+    <div class="card">
+      <h3 class="font-display" style="font-size:var(--text-xl);margin-bottom:var(--sp-4)">Send us a message</h3>
+      <form id="contact-form">
+        <div class="field"><label for="c-name">Name</label><input class="input" id="c-name" required></div>
+        <div class="field"><label for="c-email">Email</label><input class="input" type="email" id="c-email" required></div>
+        <div class="field"><label for="c-message">Message</label><textarea class="input" id="c-message" rows="5" required placeholder="Question about a reservation, allergy info, anything at all…"></textarea></div>
+        <button class="btn btn-primary btn-block" type="submit" id="contact-submit">Send Message</button>
+      </form>
+    </div>
   </div>
 </section>
 
@@ -306,9 +315,10 @@
 </footer>
 
 <script type="module">
-  import { initTheme, initMobileNav, skeletonCards } from './js/modules/ui.js';
+  import { initTheme, initMobileNav, skeletonCards, showToast } from './js/modules/ui.js';
   import { fetchCategories, fetchMeals } from './js/modules/menu-data.js';
   import { addToCart } from './js/modules/cart.js';
+  import { db, collection, addDoc, serverTimestamp, auth } from './js/firebase/config.js';
 
   initTheme();
   initMobileNav();
@@ -357,6 +367,30 @@
     }
   }
   loadHomeData();
+
+  document.getElementById('contact-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('contact-submit');
+    const name = document.getElementById('c-name').value.trim();
+    const email = document.getElementById('c-email').value.trim();
+    const message = document.getElementById('c-message').value.trim();
+    if (!name || !email.includes('@') || !message) { showToast('Please fill in every field', 'error'); return; }
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      await addDoc(collection(db, 'messages'), {
+        userId: auth.currentUser ? auth.currentUser.uid : null,
+        name, email, message,
+        status: 'new', adminReply: null,
+        createdAt: serverTimestamp()
+      });
+      showToast('Message sent — we\'ll get back to you soon!', 'success');
+      e.target.reset();
+    } catch (err) {
+      console.error(err);
+      showToast('Could not send your message: ' + (err.code || err.message), 'error');
+    }
+    btn.disabled = false; btn.textContent = 'Send Message';
+  });
 </script>
 </body>
 </html>
