@@ -16,7 +16,7 @@
 import {
   auth, db,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile,
-  doc, setDoc, deleteDoc, collection, addDoc, getDocs, query, where, limit,
+  doc, getDoc, setDoc, deleteDoc, collection, addDoc, getDocs, query, where, limit,
   serverTimestamp, Timestamp
 } from '../firebase/config.js';
 
@@ -32,6 +32,17 @@ export function isDemoEmail(email) {
 async function loginOrCreate(email, password, profileFields) {
   try {
     const cred = await signInWithEmailAndPassword(auth, email, password);
+    // Self-heal: the Auth account can exist from an earlier attempt that
+    // signed in fine but never finished writing the Firestore profile (e.g.
+    // it failed partway through seeding). Without this check, every future
+    // login "succeeds" while isAdmin()/role checks quietly fail forever,
+    // because the profile doc — and its role field — was never created.
+    const profileSnap = await getDoc(doc(db, 'users', cred.user.uid));
+    if (!profileSnap.exists()) {
+      await setDoc(doc(db, 'users', cred.user.uid), {
+        email, ...profileFields, isDemoAccount: true, createdAt: serverTimestamp()
+      });
+    }
     return { user: cred.user, isNew: false };
   } catch (err) {
     const notFound = ['auth/user-not-found', 'auth/invalid-credential', 'auth/invalid-login-credentials'].includes(err.code);
